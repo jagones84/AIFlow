@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Flow Visual Editor</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --success: #27ae60;
+        }
+        body, html { 
+            margin: 0; padding: 0; width: 100vw; height: 100vh; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            overflow: hidden;
+        }
+        header { 
+            background: var(--primary); color: white; padding: 10px 20px; 
+            display: flex; justify-content: space-between; align-items: center; 
+            height: 40px;
+        }
+        .container { display: flex; height: calc(100vh - 260px); }
+        
+        /* Global Log Panel */
+        #global-log-panel {
+            height: 200px;
+            background: #1e1e1e;
+            color: #a5b1c2;
+            border-top: 2px solid #34495e;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            padding: 10px;
+            overflow-y: auto;
+            box-sizing: border-box;
+            position: fixed;
+            bottom: 0;
+            width: 100vw;
+        }
+        #global-log-panel .log-line { margin: 2px 0; border-bottom: 1px solid #2d3436; padding-bottom: 2px; }
+        #global-log-panel .log-info { color: #74b9ff; }
+        #global-log-panel .log-error { color: #ff7675; font-weight: bold; }
+        #global-log-panel .log-warn { color: #fdcb6e; }
+        
+        .sidebar { 
+            width: 320px; background: white; border-right: 1px solid #ddd; 
+            padding: 15px; display: flex; flex-direction: column;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 10;
+            overflow-y: auto;
+        }
+        .sidebar input, .sidebar textarea, .sidebar select {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+        }
+        .nodes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+        .node-btn { 
+            display: flex; align-items: center; justify-content: center;
+            padding: 8px; background: #fff; border: 1px solid #ccc; cursor: pointer; 
+            border-radius: 4px; transition: 0.2s; font-size: 11px; font-weight: bold;
+        }
+        .node-btn:hover { background: #e9ecef; border-color: var(--accent); }
+        
+        #drawflow { 
+            width: calc(100vw - 320px); height: 100%; 
+            background: var(--bg-color); 
+            background-size: 25px 25px;
+            background-image: linear-gradient(to right, #e1e1e1 1px, transparent 1px), linear-gradient(to bottom, #e1e1e1 1px, transparent 1px);
+        }
+        
+        .run-btn { 
+            background: var(--success); color: white; border: none; 
+            padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; 
+            transition: 0.2s;
+        }
+        .run-btn:hover { background: #2ecc71; box-shadow: 0 0 10px rgba(46, 204, 113, 0.5); }
+        
+        .drawflow .drawflow-node { 
+            background: white; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            border: 1px solid #ccc; width: 220px; padding: 0;
+        }
+        .drawflow .drawflow-node.selected { border: 2px solid var(--accent); }
+        .drawflow .drawflow-node.running {
+            border: 3px solid var(--success);
+            box-shadow: 0 0 15px rgba(46, 204, 113, 0.8);
+            animation: pulse-green 1.5s infinite;
+        }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+        }
+        .drawflow .drawflow-node .title-box { 
+            background: var(--primary); color: white; padding: 10px 15px; 
+            border-radius: 7px 7px 0 0; font-weight: bold; font-size: 14px;
+        }
+        .drawflow .drawflow-node .box { padding: 15px; font-size: 13px; color: #555; }
+        .drawflow .connection .main-path { stroke: var(--accent); stroke-width: 3px; }
+        
+        .props-panel { margin-top: auto; border-top: 1px solid #ddd; padding-top: 15px; }
+        .props-panel .form-group { margin-bottom: 10px; }
+        .props-panel label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 4px; color: #555; }
+        .props-panel input[type="text"], .props-panel input[type="number"], .props-panel select, .props-panel textarea {
+            width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 12px;
+        }
+        .props-panel textarea { height: 60px; resize: vertical; }
+        .props-panel .checkbox-group { display: flex; align-items: center; }
+        .props-panel .checkbox-group input { width: auto; margin-right: 8px; }
+        
+        .props-panel .save-btn {
+            background: var(--accent); color: white; border: none; width: 100%;
+            padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-weight: bold;
+        }
+        .props-panel .save-btn:hover { background: #2980b9; }
+
+        #output-modal, #settings-modal, #save-modal, #load-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center;
+        }
+        
+        .workflow-list {
+            list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto;
+            border: 1px solid #ddd; border-radius: 4px;
+        }
+        .workflow-list li {
+            padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;
+            transition: background 0.2s; display: flex; justify-content: space-between;
+        }
+        .workflow-list li:hover { background: #f1f2f6; }
+        .workflow-list li:last-child { border-bottom: none; }
+        
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        .modal-content {
+            background: white; width: 80%; height: auto; max-height: 85vh; border-radius: 8px;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .modal-header { padding: 15px; background: var(--primary); color: white; display: flex; justify-content: space-between; }
+        .modal-body { padding: 15px; overflow-y: auto; flex-grow: 1; font-family: monospace; white-space: pre-wrap; }
+        .close-btn { background: none; border: none; color: white; cursor: pointer; font-size: 18px; }
+        
+        .api-keys-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .form-group.compact {
+            margin-bottom: 0;
+        }
+
+        /* User Chat Input Overlay */
+        #chat-overlay {
+            display: none;
+            position: fixed;
+            bottom: 220px; /* Just above the global log panel */
+            right: 20px;
+            width: 350px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            border: 2px solid var(--accent);
+            z-index: 50;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #chat-overlay-header {
+            background: var(--accent);
+            color: white;
+            padding: 10px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        #chat-overlay-message {
+            padding: 15px;
+            font-size: 13px;
+            color: #333;
+            max-height: 150px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+        }
+        #chat-overlay-input-area {
+            display: flex;
+            padding: 10px;
+            background: white;
+        }
+        #chat-input-text {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: inherit;
+            resize: none;
+        }
+        #chat-submit-btn {
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 15px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #chat-submit-btn:hover {
+            background: #2ecc71;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div><strong>AI Flow Visual Editor</strong> (Python Engine)</div>
+        <div>
+            <button class="run-btn" style="background:#2c3e50; margin-right:10px;" onclick="newProject()">📝 New Project</button>
+            <button class="run-btn" style="background:#8e44ad; margin-right:10px;" onclick="runArchitect()">🪄 Architect</button>
+            <button class="run-btn" style="background:#f39c12; margin-right:10px;" onclick="saveWorkflow()">💾 Save</button>
+            <button class="run-btn" style="background:#3498db; margin-right:10px;" onclick="loadWorkflow()">📂 Load</button>
+            <button class="run-btn" style="background:#7f8c8d; margin-right:10px;" onclick="openSettings()">⚙️ Settings</button>
+            <button class="run-btn" id="run-btn" onclick="exportAndRun()">▶ Execute Workflow</button>
+            <button class="run-btn" id="stop-btn" style="background:#e74c3c; display:none; margin-left:10px;" onclick="stopWorkflow()">🛑 Stop</button>
+        </div>
+    </header>
+    <div class="container">
+        <div class="sidebar">
+            <h3 style="margin-top:0;">Add Nodes</h3>
+            <div class="nodes-grid" id="node-palette">
+                <!-- Buttons injected via JS -->
+            </div>
+
+            <div class="props-panel" id="props-panel" style="display:none;">
+                <h4>Node Configuration</h4>
+                <input type="hidden" id="props-id">
+                <div id="dynamic-form"></div>
+                <button class="save-btn" onclick="saveProps()">💾 Save Config</button>
+                <div id="node-io-panel" style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 10px;">
+                    <!-- I/O will be injected here -->
+                </div>
+            </div>
+        </div>
+        <div id="drawflow"></div>
+    </div>
+    
+    <!-- Global Log Panel -->
+    <div id="global-log-panel">
+        <div style="color:#dfe6e9; font-weight:bold; margin-bottom:5px; border-bottom: 1px solid #555; padding-bottom:5px;">System Logs</div>
+        <div id="log-content">
+            <div class="log-line"><em>Ready. Awaiting execution...</em></div>
+        </div>
+    </div>
+
+    <!-- Save Modal -->
+    <div id="save-modal">
+        <div class="modal-content" style="width: 400px; max-height: 85vh;">
+            <div class="modal-header">
+                <h3 style="margin:0;">Save Workflow</h3>
+                <button class="close-btn" onclick="document.getElementById('save-modal').style.display='none'">✖</button>
+            </div>
+            <div class="modal-body" style="font-family: inherit;">
+                <div class="props-panel" style="border:none; padding:0; margin:0;">
+                    <div class="form-group">
+                        <label>Workflow Name (saved on server)</label>
+                        <input type="text" id="save-name" placeholder="my_workflow" />
+                    </div>
+                    <div class="btn-group">
+                        <button class="save-btn" onclick="executeSaveToServer()">💾 Save to Server</button>
+                        <button class="save-btn" style="background:#2c3e50;" onclick="downloadLocalFile()">⬇️ Download JSON</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Modal -->
+    <div id="load-modal">
+        <div class="modal-content" style="width: 500px; max-height: 85vh;">
+            <div class="modal-header">
+                <h3 style="margin:0;">Load Workflow</h3>
+                <button class="close-btn" onclick="document.getElementById('load-modal').style.display='none'">✖</button>
+            </div>
+            <div class="modal-body" style="font-family: inherit;">
+                <div class="props-panel" style="border:none; padding:0; margin:0;">
+                    <label style="margin-bottom:8px; display:block;">Load from Server:</label>
+                    <ul class="workflow-list" id="workflow-list-container">
+                        <!-- Populated via JS -->
+                    </ul>
+                    <hr style="margin: 20px 0; border:0; border-top: 1px solid #ddd;" />
+                    <label style="margin-bottom:8px; display:block;">Or Upload local JSON file:</label>
+                    <input type="file" id="local-file-input" accept=".json" style="margin-bottom: 10px; width:100%;" />
+                    <button class="save-btn" style="background:#2c3e50;" onclick="uploadLocalFile()">⬆️ Load Local File</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Keys Modal -->
+    <div id="settings-modal">
+        <div class="modal-content" style="width: 500px; max-height: 85vh;">
+            <div class="modal-header">
+                <h3 style="margin:0;">Environment Settings</h3>
+                <button class="close-btn" onclick="document.getElementById('settings-modal').style.display='none'">✖</button>
+            </div>
+            <div class="modal-body" style="font-family: inherit;">
+                <p style="font-size:12px; color:#555; margin-top:0; margin-bottom:15px;">These keys are saved locally on your backend server (.env).</p>
+                <div class="api-keys-grid">
+                    <div class="form-group compact">
+                        <label>OpenAI API Key</label>
+                        <input type="text" id="openai-key" placeholder="sk-..." />
+                    </div>
+                    <div class="form-group compact">
+                        <label>Anthropic API Key</label>
+                        <input type="text" id="anthropic-key" placeholder="sk-ant-..." />
+                    </div>
+                    <div class="form-group compact">
+                        <label>OpenRouter API Key</label>
+                        <input type="text" id="openrouter-key" placeholder="sk-or-..." />
+                    </div>
+                    <div class="form-group compact">
+                        <label>Gemini API Key</label>
+                        <input type="text" id="gemini-key" placeholder="AIzaSy..." />
+                    </div>
+                    <div class="form-group compact">
+                        <label>Groq API Key</label>
+                        <input type="text" id="groq-key" placeholder="gsk_..." />
+                    </div>
+                    <div class="form-group compact">
+                        <label>Brave Search API Key</label>
+                        <input type="text" id="brave-key" placeholder="BSAL..." />
+                    </div>
+                    <div class="form-group compact">
+                        <label>Tavily API Key</label>
+                        <input type="text" id="tavily-key" placeholder="tvly-..." />
+                    </div>
+                    <div class="form-group compact">
+                        <label>HuggingFace Token</label>
+                        <input type="text" id="huggingface-key" placeholder="hf_..." />
+                    </div>
+                    <div class="form-group compact">
+                        <label>MapBox API Key</label>
+                        <input type="text" id="mapbox-key" placeholder="pk.eyJ..." />
+                    </div>
+                    <div class="form-group compact">
+                        <label>Youtube API Key</label>
+                        <input type="text" id="youtube-key" placeholder="AIza..." />
+                    </div>
+                    <div class="form-group compact">
+                        <label>GitHub Token</label>
+                        <input type="text" id="github-key" placeholder="ghp_..." />
+                    </div>
+                </div>
+                <button class="save-btn" style="margin-top: 15px;" onclick="saveEnv()">💾 Save to .env</button>
+            </div>
+        </div>
+    </div>
+    <!-- Output Modal -->
+    <div id="output-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="margin:0;">Execution Results</h3>
+                <button class="close-btn" onclick="document.getElementById('output-modal').style.display='none'">✖</button>
+            </div>
+            <div class="modal-body" id="output-body"></div>
+        </div>
+    </div>
+
+    <!-- Chat Overlay for USER_INPUT nodes -->
+    <div id="chat-overlay">
+        <div id="chat-overlay-header">Agent requires your input</div>
+        <div id="chat-overlay-message"></div>
+        <div id="chat-overlay-input-area">
+            <input type="hidden" id="chat-node-id" />
+            <textarea id="chat-input-text" rows="2" placeholder="Type your answer here..."></textarea>
+            <button id="chat-submit-btn" onclick="submitUserChat()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        var id = document.getElementById("drawflow");
+        const editor = new Drawflow(id);
+        editor.reroute = true;
+        editor.start();
+
+        const NODE_TYPES = [
+            { id: 'TRIGGER', label: '⚡ Trigger', color: '#f1c40f', inputs: 0, outputs: 1 },
+            { id: 'AI_AGENT', label: '🤖 AI Agent', color: '#9b59b6', inputs: 1, outputs: 1 },
+            { id: 'TOOL_EXECUTION', label: '🔧 Tool', color: '#34495e', inputs: 1, outputs: 1 },
+            { id: 'ROUTER', label: '🔀 Router', color: '#e67e22', inputs: 1, outputs: 2 },
+            { id: 'SWITCH', label: '🛣️ Switch', color: '#d35400', inputs: 1, outputs: 3 }, // Variable outputs in reality
+            { id: 'USER_INPUT', label: '👤 User Input', color: '#1abc9c', inputs: 1, outputs: 1 },
+            { id: 'KNOWLEDGE', label: '📚 Knowledge', color: '#16a085', inputs: 1, outputs: 1 },
+            { id: 'JSON_PARSER', label: '🧬 JSON Parser', color: '#2ecc71', inputs: 1, outputs: 1 },
+            { id: 'JSON_FIELD_EXTRACT', label: '🎯 JSON Extract', color: '#27ae60', inputs: 1, outputs: 1 },
+            { id: 'MERGE', label: '🔗 Merge', color: '#3498db', inputs: 2, outputs: 1 },
+            { id: 'LOOP_OVER_ITEMS', label: '🔁 Loop', color: '#2980b9', inputs: 1, outputs: 2 }, // Loop, Done
+            { id: 'VARIABLE_STORE', label: '💾 Var Store', color: '#8e44ad', inputs: 1, outputs: 1 },
+            { id: 'FILE_SAVE', label: '📁 File Save', color: '#2c3e50', inputs: 1, outputs: 1 },
+            { id: 'STOP_AND_ERROR', label: '🛑 Error', color: '#c0392b', inputs: 1, outputs: 0 },
+            { id: 'HTTP_REQUEST', label: '🌐 HTTP', color: '#16a085', inputs: 1, outputs: 1 },
+            { id: 'WAIT', label: '⏳ Wait', color: '#7f8c8d', inputs: 1, outputs: 1 },
+            { id: 'CODE', label: '💻 Code', color: '#e74c3c', inputs: 1, outputs: 1 },
+            { id: 'SET', label: '📝 Set', color: '#f39c12', inputs: 1, outputs: 1 },
+            { id: 'FILTER', label: '🔍 Filter', color: '#f1c40f', inputs: 1, outputs: 1 },
+            { id: 'SORT', label: '🔽 Sort', color: '#3498db', inputs: 1, outputs: 1 },
+            { id: 'LIMIT', label: '🔢 Limit', color: '#9b59b6', inputs: 1, outputs: 1 },
+            { id: 'AGGREGATE', label: '📦 Aggregate', color: '#2ecc71', inputs: 1, outputs: 1 },
+            { id: 'REMOVE_DUPLICATES', label: '🧹 Dedupe', color: '#e67e22', inputs: 1, outputs: 1 },
+            { id: 'SPLIT_OUT', label: '✂️ Split Out', color: '#d35400', inputs: 1, outputs: 1 },
+            { id: 'SUMMARIZE', label: '📊 Summarize', color: '#c0392b', inputs: 1, outputs: 1 },
+            { id: 'OUTPUT_DISPLAY', label: '🏁 Output', color: '#2c3e50', inputs: 1, outputs: 0 }
+        ];
+
+        // Populate Palette
+        const palette = document.getElementById('node-palette');
+        NODE_TYPES.forEach(nt => {
+            const btn = document.createElement('button');
+            btn.className = 'node-btn';
+            btn.innerHTML = nt.label;
+            btn.onclick = () => addNode(nt);
+            palette.appendChild(btn);
+        });
+
+        function addNode(nt) {
+            const px = 200 + Math.random() * 100;
+            const py = 150 + Math.random() * 100;
+            
+            const defaultConfig = {};
+            const schema = (FORM_SCHEMA[nt.id] || []).concat(COMMON_SCHEMA);
+            schema.forEach(f => {
+                defaultConfig[f.id] = f.default;
+            });
+            
+            const data = { type: nt.id, config: defaultConfig };
+            const html = `<div class="title-box" style="background:${nt.color}">${nt.label}</div><div class="box">Node ID: ${nt.id}</div>`;
+            
+            editor.addNode(nt.id, nt.inputs, nt.outputs, px, py, nt.id.toLowerCase(), data, html);
+        }
+
+        // Property Form Definitions
+        // Prevent Drawflow from capturing keystrokes when typing in inputs
+        // This prevents the backspace/delete from deleting the selected node.
+        const sidebar = document.querySelector('.sidebar');
+        sidebar.addEventListener('keydown', function(e) { e.stopPropagation(); });
+        
+        const settingsModal = document.getElementById('settings-modal');
+        settingsModal.addEventListener('keydown', function(e) { e.stopPropagation(); });
+
+        // Fetch available tools from backend to populate select dropdown
+        let AVAILABLE_TOOLS = ['fetch_url', 'web_search', 'calculator', 'get_current_time'];
+        fetch('/api/tools').then(r => r.json()).then(data => {
+            if(data && data.tools) {
+                AVAILABLE_TOOLS = data.tools;
+                // Update schema dynamically
+                const toolSchema = FORM_SCHEMA['TOOL_EXECUTION'].find(f => f.id === 'selectedToolName');
+                if(toolSchema) {
+                    toolSchema.type = 'select';
+                    toolSchema.options = AVAILABLE_TOOLS;
+                }
+                const aiToolSchema = FORM_SCHEMA['AI_AGENT'].find(f => f.id === 'allowedTools');
+                if(aiToolSchema) {
+                    aiToolSchema.options = AVAILABLE_TOOLS;
+                }
+            }
+        }).catch(e => console.error("Could not fetch tools:", e));
+
+        const FORM_SCHEMA = {
+            'TRIGGER': [
+                { id: 'triggerType', label: 'Trigger Type', type: 'select', options: ['MANUAL', 'SCHEDULE', 'WEBHOOK'], default: 'MANUAL' },
+                { id: 'triggerIntervalMinutes', label: 'Interval (Mins)', type: 'number', default: 15 },
+                { id: 'webhookPath', label: 'Webhook Path', type: 'text', default: 'my-hook' }
+            ],
+            'AI_AGENT': [
+                { id: 'modelId', label: 'Model ID', type: 'text', default: 'x-ai/grok-4.1-fast' },
+                { id: 'systemPrompt', label: 'System Prompt', type: 'textarea', default: 'You are a helpful assistant.' },
+                { id: 'allowedTools', label: 'Allowed Tools', type: 'multiselect', options: [], default: ['mcp__Brave Search', 'mcp__Multi-Fetch', 'fetch_url'] }
+            ],
+            'TOOL_EXECUTION': [
+                { id: 'selectedToolName', label: 'Tool Name', type: 'select', options: ['fetch_url', 'web_search', 'calculator', 'get_current_time'], default: 'fetch_url' },
+                { id: 'mcpToolName', label: 'MCP Specific Tool (if MCP Server)', type: 'text', default: '' },
+                { id: 'mcpToolArgs', label: 'MCP Args (JSON)', type: 'textarea', default: '{"query": "{{ $json.text }}"}' }
+            ],
+            'ROUTER': [
+                { id: 'routerMode', label: 'Mode', type: 'select', options: ['SIMPLE_RULE', 'AI_LLM'], default: 'SIMPLE_RULE' },
+                { id: 'ruleCondition', label: 'Condition', type: 'text', default: 'expr: {{ $json.success }} == true' }
+            ],
+            'SWITCH': [
+                { id: 'routerMode', label: 'Mode', type: 'select', options: ['SIMPLE_RULE', 'AI_LLM'], default: 'SIMPLE_RULE' },
+                // Simplified routes for GUI (would need dynamic list in a real app)
+            ],
+            'USER_INPUT': [
+                { id: 'userInstruction', label: 'Instruction', type: 'text', default: 'latest soccer italian match with result, search for it' },
+                { id: 'isInteractive', label: 'Wait for User', type: 'checkbox', default: false }
+            ],
+            'JSON_PARSER': [
+                { id: 'jsonSchema', label: 'Target Schema', type: 'textarea', default: '{"key": "string"}' }
+            ],
+            'JSON_FIELD_EXTRACT': [
+                { id: 'ruleCondition', label: 'JSON Path', type: 'text', default: 'data.items[0]' }
+            ],
+            'MERGE': [
+                { id: 'mergeMode', label: 'Mode', type: 'select', options: ['APPEND', 'WAIT', 'CHOOSE_BRANCH', 'COMBINE_BY_POSITION', 'COMBINE_BY_FIELDS', 'MULTIPLEX'], default: 'APPEND' }
+            ],
+            'LOOP_OVER_ITEMS': [
+                { id: 'batchSize', label: 'Batch Size', type: 'number', default: 1 }
+            ],
+            'VARIABLE_STORE': [
+                { id: 'variableKey', label: 'Key', type: 'text', default: 'my_var' },
+                { id: 'variableOperation', label: 'Operation', type: 'select', options: ['READ', 'WRITE', 'APPEND'], default: 'READ' }
+            ],
+            'HTTP_REQUEST': [
+                { id: 'httpUrl', label: 'URL', type: 'text', default: 'https://api.example.com' },
+                { id: 'httpMethod', label: 'Method', type: 'select', options: ['GET', 'POST', 'PUT', 'DELETE'], default: 'GET' },
+                { id: 'httpBody', label: 'Body (JSON)', type: 'textarea', default: '' }
+            ],
+            'WAIT': [
+                { id: 'waitTimeMs', label: 'Wait Time (ms)', type: 'number', default: 1000 }
+            ],
+            'CODE': [
+                { id: 'codeLanguage', label: 'Language', type: 'select', options: ['python', 'javascript'], default: 'python' },
+                { id: 'codeBody', label: 'Code', type: 'textarea', default: 'output = "Hello from code"' }
+            ],
+            'SET': [
+                { id: 'keepOnlySetFields', label: 'Keep Only Set Fields', type: 'checkbox', default: false }
+                // Simplified for GUI - real app needs dynamic list of fields
+            ],
+            'FILTER': [
+                { id: 'ruleCondition', label: 'Condition', type: 'text', default: 'contains:error' }
+            ],
+            'SORT': [
+                { id: 'sortFieldName', label: 'Field Name', type: 'text', default: 'id' },
+                { id: 'sortOrder', label: 'Order', type: 'select', options: ['asc', 'desc'], default: 'asc' },
+                { id: 'sortType', label: 'Type', type: 'select', options: ['string', 'number', 'date'], default: 'string' }
+            ],
+            'LIMIT': [
+                { id: 'limitCount', label: 'Count', type: 'number', default: 10 },
+                { id: 'limitOffset', label: 'Offset', type: 'number', default: 0 }
+            ],
+            'AGGREGATE': [
+                { id: 'aggregateMode', label: 'Mode', type: 'select', options: ['allItemData', 'individualFields'], default: 'allItemData' },
+                { id: 'aggregateOutputField', label: 'Output Field', type: 'text', default: 'data' }
+            ]
+        };
+
+        // Common fields for all nodes
+        const COMMON_SCHEMA = [
+            { id: 'continueOnError', label: 'Continue On Error', type: 'checkbox', default: false },
+            { id: 'maxIterations', label: 'Max Iterations', type: 'number', default: 3 },
+            { id: 'waitForAllInputs', label: 'Wait For All Inputs', type: 'checkbox', default: false }
+        ];
+
+        // UI Event Listeners
+        window.lastExecutionResults = {};
+        let currentSelectedId = null;
+
+        editor.on('nodeSelected', function(id) {
+            if (currentSelectedId === id) return;
+            currentSelectedId = id;
+            
+            const node = editor.getNodeFromId(id);
+            const type = node.data.type;
+            const config = node.data.config || {};
+            
+            document.getElementById('props-id').value = id;
+            document.getElementById('props-panel').style.display = 'block';
+            
+            const form = document.getElementById('dynamic-form');
+            form.innerHTML = '';
+            
+            const schema = (FORM_SCHEMA[type] || []).concat(COMMON_SCHEMA);
+            
+            schema.forEach(field => {
+                const div = document.createElement('div');
+                div.className = 'form-group';
+                
+                const val = config[field.id] !== undefined ? config[field.id] : field.default;
+                
+                if (field.type === 'checkbox') {
+                    div.className = 'form-group checkbox-group';
+                    div.innerHTML = `
+                        <input type="checkbox" id="prop_${field.id}" ${val ? 'checked' : ''}>
+                        <label for="prop_${field.id}" style="margin:0;">${field.label}</label>
+                    `;
+                } else if (field.type === 'select') {
+                    let opts = field.options.map(o => `<option value="${o}" ${o===val ? 'selected' : ''}>${o}</option>`).join('');
+                    div.innerHTML = `
+                        <label>${field.label}</label>
+                        <select id="prop_${field.id}">${opts}</select>
+                    `;
+                } else if (field.type === 'multiselect') {
+                    // Quick and dirty multiselect using checkboxes in a scrollable div
+                    let checks = field.options.map(o => {
+                        const isChecked = (val || []).includes(o) ? 'checked' : '';
+                        return `<div><input type="checkbox" value="${o}" class="multi-check-${field.id}" ${isChecked}> <span style="font-size:11px;">${o}</span></div>`;
+                    }).join('');
+                    div.innerHTML = `
+                        <label>${field.label}</label>
+                        <div style="max-height: 100px; overflow-y: auto; border: 1px solid #ccc; padding: 5px; border-radius: 4px; background: #fff;">
+                            ${checks}
+                        </div>
+                    `;
+                } else if (field.type === 'textarea') {
+                    div.innerHTML = `
+                        <label>${field.label}</label>
+                        <textarea id="prop_${field.id}">${val}</textarea>
+                    `;
+                } else {
+                    div.innerHTML = `
+                        <label>${field.label}</label>
+                        <input type="${field.type}" id="prop_${field.id}" value="${val}">
+                    `;
+                }
+                form.appendChild(div);
+            });
+
+            // Populate I/O Panel
+            const ioPanel = document.getElementById('node-io-panel');
+            const res = window.lastExecutionResults[id];
+            if (res) {
+                ioPanel.innerHTML = `
+                    <h5 style="margin:0 0 5px 0;">Last Input</h5>
+                    <pre style="font-size:10px; max-height:100px; overflow:auto; background:#eee; padding:5px; margin:0 0 10px 0;">${JSON.stringify(res.lastInputItems, null, 2)}</pre>
+                    <h5 style="margin:0 0 5px 0;">Last Output</h5>
+                    <pre style="font-size:10px; max-height:100px; overflow:auto; background:#eee; padding:5px; margin:0;">${JSON.stringify(res.lastOutputItems, null, 2)}</pre>
+                `;
+            } else {
+                ioPanel.innerHTML = '<em style="font-size:11px; color:#7f8c8d;">No execution data yet. Run the workflow first.</em>';
+            }
+        });
+
+        editor.on('nodeUnselected', function() {
+            currentSelectedId = null;
+            document.getElementById('props-panel').style.display = 'none';
+        });
+
+        function saveProps() {
+            const id = document.getElementById('props-id').value;
+            if(!id) return;
+            
+            const node = editor.getNodeFromId(id);
+            const type = node.data.type;
+            const schema = (FORM_SCHEMA[type] || []).concat(COMMON_SCHEMA);
+            
+            const newConfig = {};
+            schema.forEach(field => {
+                if (field.type === 'multiselect') {
+                    const checkboxes = document.querySelectorAll(`.multi-check-${field.id}:checked`);
+                    newConfig[field.id] = Array.from(checkboxes).map(c => c.value);
+                    return;
+                }
+
+                const el = document.getElementById(`prop_${field.id}`);
+                if (!el) return;
+                
+                if (field.type === 'checkbox') {
+                    newConfig[field.id] = el.checked;
+                } else if (field.type === 'number') {
+                    newConfig[field.id] = Number(el.value);
+                } else {
+                    newConfig[field.id] = el.value;
+                }
+            });
+            
+            node.data.config = newConfig;
+            editor.updateNodeDataFromId(id, node.data);
+            
+            // Visual feedback
+            const btn = document.querySelector('.save-btn');
+            const oldText = btn.innerText;
+            btn.innerText = "✅ Saved!";
+            setTimeout(() => btn.innerText = oldText, 1000);
+        }
+
+        function openSettings() {
+            // Fetch current env
+            fetch('/api/env')
+                .then(r => {
+                    if (!r.ok) throw new Error("Network response was not ok");
+                    return r.json();
+                })
+                .then(data => {
+                    const okEl = document.getElementById('openai-key');
+                    const akEl = document.getElementById('anthropic-key');
+                    const orEl = document.getElementById('openrouter-key');
+                    const gmEl = document.getElementById('gemini-key');
+                    const grEl = document.getElementById('groq-key');
+                    const brEl = document.getElementById('brave-key');
+                    const tvEl = document.getElementById('tavily-key');
+                    const hfEl = document.getElementById('huggingface-key');
+                    const mbEl = document.getElementById('mapbox-key');
+                    const ytEl = document.getElementById('youtube-key');
+                    const ghEl = document.getElementById('github-key');
+                    
+                    if(okEl) okEl.value = data.openai || '';
+                    if(akEl) akEl.value = data.anthropic || '';
+                    if(orEl) orEl.value = data.openrouter || '';
+                    if(gmEl) gmEl.value = data.gemini || '';
+                    if(grEl) grEl.value = data.groq || '';
+                    if(brEl) brEl.value = data.brave || '';
+                    if(tvEl) tvEl.value = data.tavily || '';
+                    if(hfEl) hfEl.value = data.huggingface || '';
+                    if(mbEl) mbEl.value = data.mapbox || '';
+                    if(ytEl) ytEl.value = data.youtube || '';
+                    if(ghEl) ghEl.value = data.github || '';
+                    
+                    const modal = document.getElementById('settings-modal');
+                    if(modal) modal.style.display = 'flex';
+                }).catch(e => {
+                    console.error("Error fetching env", e);
+                    const modal = document.getElementById('settings-modal');
+                    if(modal) modal.style.display = 'flex';
+                });
+        }
+
+        async function saveEnv() {
+            const openai = document.getElementById('openai-key').value;
+            const anthropic = document.getElementById('anthropic-key').value;
+            const openrouter = document.getElementById('openrouter-key').value;
+            const gemini = document.getElementById('gemini-key').value;
+            const groq = document.getElementById('groq-key').value;
+            const brave = document.getElementById('brave-key').value;
+            const tavily = document.getElementById('tavily-key').value;
+            const huggingface = document.getElementById('huggingface-key').value;
+            const mapbox = document.getElementById('mapbox-key').value;
+            const youtube = document.getElementById('youtube-key').value;
+            const github = document.getElementById('github-key').value;
+            
+            await fetch('/api/env', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({openai, anthropic, openrouter, gemini, groq, brave, tavily, huggingface, mapbox, youtube, github})
+            });
+            document.getElementById('settings-modal').style.display = 'none';
+            alert('Settings saved to backend .env');
+        }
+
+        function saveWorkflow() {
+            document.getElementById('save-modal').style.display = 'flex';
+        }
+
+        async function executeSaveToServer() {
+            const name = document.getElementById('save-name').value.trim();
+            if (!name) {
+                alert("Please enter a name.");
+                return;
+            }
+            const data = editor.export();
+            try {
+                const res = await fetch('/api/workflow', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: name, data: data})
+                });
+                if(res.ok) {
+                    alert('Workflow Saved Successfully!');
+                    document.getElementById('save-modal').style.display = 'none';
+                }
+            } catch(e) {
+                alert('Error saving workflow: ' + e);
+            }
+        }
+
+        function downloadLocalFile() {
+            const data = editor.export();
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+            const name = document.getElementById('save-name').value.trim() || "workflow";
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", name + ".json");
+            dlAnchorElem.click();
+            document.getElementById('save-modal').style.display = 'none';
+        }
+
+        async function loadWorkflow() {
+            document.getElementById('load-modal').style.display = 'flex';
+            const listContainer = document.getElementById('workflow-list-container');
+            listContainer.innerHTML = '<li>Loading...</li>';
+            
+            try {
+                const listRes = await fetch('/api/workflows');
+                if(!listRes.ok) throw new Error("Failed to fetch list");
+                const listData = await listRes.json();
+                
+                listContainer.innerHTML = '';
+                if(!listData.workflows || listData.workflows.length === 0) {
+                    listContainer.innerHTML = '<li><em style="color:#7f8c8d;">No saved workflows found on server.</em></li>';
+                    return;
+                }
+                
+                listData.workflows.forEach(w => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>${w}</strong> <span style="color:var(--accent);">Load ➔</span>`;
+                    li.onclick = () => executeLoadFromServer(w);
+                    listContainer.appendChild(li);
+                });
+            } catch(e) {
+                listContainer.innerHTML = `<li style="color:red;">Error loading list: ${e}</li>`;
+            }
+        }
+
+        async function executeLoadFromServer(name) {
+            try {
+                const res = await fetch(`/api/workflow?name=${encodeURIComponent(name)}`);
+                if(res.ok) {
+                    const data = await res.json();
+                    if(data) {
+                        editor.import(data);
+                        document.getElementById('load-modal').style.display = 'none';
+                        alert('Workflow Loaded Successfully!');
+                    }
+                } else {
+                    alert('Workflow not found.');
+                }
+            } catch(e) {
+                alert('Error loading workflow: ' + e);
+            }
+        }
+
+        function uploadLocalFile() {
+            const fileInput = document.getElementById('local-file-input');
+            if(fileInput.files.length === 0) {
+                alert("Please select a file first.");
+                return;
+            }
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    editor.import(data);
+                    document.getElementById('load-modal').style.display = 'none';
+                    alert("Local Workflow loaded successfully!");
+                } catch(err) {
+                    alert("Invalid JSON file.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function newProject() {
+            if (confirm("Are you sure you want to clear the current workflow? All unsaved progress will be lost.")) {
+                editor.clearModuleSelected();
+                window.lastExecutionResults = {};
+                document.getElementById('node-io-panel').innerHTML = '<em style="font-size:11px; color:#7f8c8d;">No execution data yet. Run the workflow first.</em>';
+                document.getElementById('props-panel').style.display = 'none';
+                document.getElementById('log-content').innerHTML = '';
+            }
+        }
+
+        async function runArchitect() {
+            // Check for OpenRouter API Key
+            let hasKey = false;
+            try {
+                const resEnv = await fetch('/api/env');
+                const envData = await resEnv.json();
+                if (envData.openrouter) hasKey = true;
+            } catch(e) {}
+
+            if (!hasKey) {
+                alert("Please set your OpenRouter API Key in Settings first to use the Architect.");
+                return;
+            }
+
+            const modelStr = prompt("Enter the model for the Architect (default: x-ai/grok-4.1-fast):", "x-ai/grok-4.1-fast");
+            if (!modelStr) return;
+
+            const defaultPrompt = "Create a workflow that starts with a TRIGGER, asks the user for a research topic using USER_INPUT, passes it to an AI_AGENT to search the web, and finally uses FILE_SAVE to store the results.";
+            const promptStr = prompt("Describe the workflow you want to build:", defaultPrompt);
+            if(!promptStr) return;
+            
+            const btn = document.querySelector('.architect-btn');
+            if (btn) {
+                btn.dataset.originalText = btn.innerText;
+                btn.innerHTML = `<span class="spinner" style="display:inline-block; margin-right:5px; animation: spin 1s linear infinite;">⏳</span> Designing...`;
+                btn.style.opacity = "0.7";
+                btn.style.pointerEvents = "none";
+            }
+            
+            // Show a dedicated animated overlay
+            let overlay = document.getElementById('architect-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'architect-overlay';
+                overlay.innerHTML = `
+                    <div style="background: rgba(0,0,0,0.8); position: fixed; top:0; left:0; right:0; bottom:0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+                        <div style="font-size: 40px; margin-bottom: 20px; animation: spin 1.5s linear infinite;">⚙️</div>
+                        <h2 style="margin: 0; padding: 0;">Architect is designing your workflow...</h2>
+                        <p id="architect-overlay-status" style="color: #3498db; margin-top: 10px; font-weight: bold;">Initializing...</p>
+                    </div>
+                    <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
+                `;
+                document.body.appendChild(overlay);
+            }
+            overlay.style.display = 'flex';
+            
+            // Add a log entry in the UI so user knows it started
+            const logContent = document.getElementById('log-content');
+            if (logContent) {
+                logContent.innerHTML += `<div class="log-line log-info">[Architect] Starting design process for: "${promptStr}"</div>`;
+                const panel = document.getElementById('global-log-panel');
+                if (panel) panel.scrollTop = panel.scrollHeight;
+            }
+            
+            // Poll for architect graph updates while designing
+            const pollInterval = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/architect/graph');
+                    if (res.ok) {
+                        const graphData = await res.json();
+                        if (logContent && graphData.last_action) {
+                            // Only append if it's a new action
+                            if (window.lastArchitectAction !== graphData.last_action) {
+                                window.lastArchitectAction = graphData.last_action;
+                                logContent.innerHTML += `<div class="log-line">[Architect Agent] ${graphData.last_action}</div>`;
+                                const panel = document.getElementById('global-log-panel');
+                                if (panel) panel.scrollTop = panel.scrollHeight;
+                                
+                                // Update overlay text
+                                const overlayStatus = document.getElementById('architect-overlay-status');
+                                if (overlayStatus) overlayStatus.innerText = graphData.last_action;
+                            }
+                        }
+                    }
+                } catch(e) {}
+            }, 1000);
+            
+            try {
+                const res = await fetch('/api/architect', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({prompt: promptStr, model: modelStr})
+                });
+                const data = await res.json();
+                if(data.status === 'success' && data.drawflow) {
+                    editor.import(data.drawflow);
+                    alert("Workflow generated successfully!");
+                } else {
+                    alert("Failed to generate workflow: " + (data.message || "Unknown error"));
+                }
+            } catch(e) {
+                alert("Error connecting to Architect: " + e);
+            } finally {
+                clearInterval(pollInterval);
+                if (btn) {
+                    btn.innerText = btn.dataset.originalText || "🪄 Architect";
+                    btn.style.opacity = "1";
+                    btn.style.pointerEvents = "auto";
+                }
+                if (overlay) overlay.style.display = 'none';
+            }
+        }
+
+        let pollInterval = null;
+
+        async function exportAndRun() {
+            const exportData = editor.export().drawflow.Home.data;
+            const nodes = [];
+            const connections = [];
+
+            for (const key in exportData) {
+                const dfNode = exportData[key];
+                const nodeData = dfNode.data;
+                
+                const inputs = [];
+                const outputs = [];
+                
+                for(let inKey in dfNode.inputs) {
+                    inputs.push({ id: dfNode.id + "_" + inKey, name: inKey, parentNodeId: String(dfNode.id) });
+                }
+                
+                let outKeys = Object.keys(dfNode.outputs);
+                outKeys.forEach((outKey, index) => {
+                    let pinName = outKey;
+                    if (nodeData.type === 'ROUTER') {
+                        pinName = index === 0 ? 'True' : 'False'; 
+                    } else if (nodeData.type === 'LOOP_OVER_ITEMS') {
+                        pinName = index === 0 ? 'Loop' : 'Done';
+                    }
+                    
+                    outputs.push({ id: dfNode.id + "_" + outKey, name: pinName, parentNodeId: String(dfNode.id) });
+                    
+                    dfNode.outputs[outKey].connections.forEach(conn => {
+                        connections.push({
+                            id: dfNode.id + "_" + conn.node + "_" + outKey + "_" + conn.output,
+                            fromNodeId: String(dfNode.id),
+                            fromPinId: dfNode.id + "_" + outKey,
+                            toNodeId: String(conn.node),
+                            toPinId: conn.node + "_" + conn.output
+                        });
+                    });
+                });
+
+                nodes.push({
+                    id: String(dfNode.id),
+                    title: dfNode.name + " " + dfNode.id,
+                    type: nodeData.type,
+                    position: { x: dfNode.pos_x, y: dfNode.pos_y },
+                    inputs: inputs,
+                    outputs: outputs,
+                    ...nodeData.config
+                });
+            }
+
+            const projectData = {
+                name: "Web Project",
+                nodes: nodes,
+                connections: connections
+            };
+
+            const btn = document.getElementById('run-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            btn.innerText = "⏳ Running...";
+            btn.style.background = "#f39c12";
+            btn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+
+            // Start polling for real-time status
+            pollInterval = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/status');
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Clear running class
+                        document.querySelectorAll('.drawflow-node').forEach(el => el.classList.remove('running'));
+                        // Add running class
+                        data.running_nodes.forEach(id => {
+                            const el = document.getElementById('node-' + id);
+                            if(el) el.classList.add('running');
+                        });
+                        
+                        // Update Logs
+                        if (data.logs && data.logs.length > 0) {
+                            const logContent = document.getElementById('log-content');
+                            logContent.innerHTML = data.logs.map(log => {
+                                let cls = 'log-line';
+                                if (log.includes('[ERROR')) cls += ' log-error';
+                                else if (log.includes('[INFO')) cls += ' log-info';
+                                return `<div class="${cls}">${log}</div>`;
+                            }).join('');
+                            // Auto scroll to bottom
+                            const panel = document.getElementById('global-log-panel');
+                            panel.scrollTop = panel.scrollHeight;
+                        }
+
+                        // Check for waiting nodes (USER_INPUT pause)
+                        if (data.waiting_nodes && data.waiting_nodes.length > 0) {
+                            const waitId = data.waiting_nodes[0];
+                            const overlay = document.getElementById('chat-overlay');
+                            if (overlay.style.display !== 'flex') {
+                                // Add animation class to node
+                                const el = document.getElementById('node-' + waitId);
+                                if(el) el.classList.add('running'); // keep it highlighted
+                                
+                                document.getElementById('chat-node-id').value = waitId;
+                                document.getElementById('chat-overlay-message').innerText = data.last_ai_message || "The flow is paused and waiting for your input.";
+                                document.getElementById('chat-input-text').value = '';
+                                overlay.style.display = 'flex';
+                                document.getElementById('chat-input-text').focus();
+                            }
+                        } else {
+                            document.getElementById('chat-overlay').style.display = 'none';
+                        }
+                    }
+                } catch(e) {}
+            }, 500);
+
+            try {
+                const res = await fetch('/api/run', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(projectData)
+                });
+                const result = await res.json();
+                
+                // Sort results topologically for display
+                const nodeMap = {};
+                result.results.forEach(r => nodeMap[r.id] = r);
+                const sortedResults = [];
+                const visited = new Set();
+                
+                const incomingCount = {};
+                connections.forEach(c => {
+                    incomingCount[c.toNodeId] = (incomingCount[c.toNodeId] || 0) + 1;
+                });
+                const startNodes = nodes.filter(n => !incomingCount[n.id]).map(n => n.id);
+                
+                function visit(id) {
+                    if (visited.has(id)) return;
+                    visited.add(id);
+                    if (nodeMap[id]) sortedResults.push(nodeMap[id]);
+                    const children = connections.filter(c => c.fromNodeId === id).map(c => c.toNodeId);
+                    children.forEach(visit);
+                }
+                
+                startNodes.forEach(visit);
+                result.results.forEach(r => {
+                    if (!visited.has(r.id)) sortedResults.push(r);
+                });
+                
+                result.results = sortedResults;
+                
+                // Store results for I/O panel
+                window.lastExecutionResults = {};
+                result.results.forEach(r => {
+                    window.lastExecutionResults[r.id] = r;
+                });
+                
+                // Update I/O panel if a node is currently selected
+                if (currentSelectedId && window.lastExecutionResults[currentSelectedId]) {
+                    const ioPanel = document.getElementById('node-io-panel');
+                    const r = window.lastExecutionResults[currentSelectedId];
+                    ioPanel.innerHTML = `
+                        <h5 style="margin:0 0 5px 0;">Last Input</h5>
+                        <pre style="font-size:10px; max-height:150px; overflow:auto; background:#eee; padding:5px; margin:0 0 10px 0; white-space: pre-wrap; word-wrap: break-word;">${JSON.stringify(r.lastInputItems, null, 2)}</pre>
+                        <h5 style="margin:0 0 5px 0;">Last Output</h5>
+                        <pre style="font-size:10px; max-height:150px; overflow:auto; background:#eee; padding:5px; margin:0; white-space: pre-wrap; word-wrap: break-word;">${JSON.stringify(r.lastOutputItems, null, 2)}</pre>
+                    `;
+                }
+
+                const modal = document.getElementById('output-modal');
+                const body = document.getElementById('output-body');
+                
+                let htmlContent = `<h2>Execution Status: ${result.status}</h2>`;
+                
+                htmlContent += `<h3>Node Results:</h3>`;
+                result.results.forEach(r => {
+                    htmlContent += `<div style="background:#f1f2f6; padding:10px; margin-bottom:10px; border-left:4px solid ${r.status === 'SUCCESS' ? '#2ecc71' : '#e74c3c'};">`;
+                    htmlContent += `<strong>[${r.status}] ${r.title}</strong><br>`;
+                    if(r.lastOutputItems && r.lastOutputItems.length > 0) {
+                        htmlContent += `<pre style="font-size:11px; max-height:300px; overflow-y:auto; white-space: pre-wrap; word-wrap: break-word;">${JSON.stringify(r.lastOutputItems, null, 2)}</pre>`;
+                    } else if (r.lastOutput) {
+                        htmlContent += `<em style="white-space: pre-wrap; word-wrap: break-word; display:block; font-size:11px;">${r.lastOutput}</em>`;
+                    } else {
+                        htmlContent += `<em>No output</em>`;
+                    }
+                    htmlContent += `</div>`;
+                });
+
+                htmlContent += `<h3>Engine Logs:</h3><pre style="font-size:11px; background:#2d3436; color:#dfe6e9; padding:10px; max-height:300px; overflow-y:auto;">`;
+                htmlContent += result.logs.join('\n');
+                htmlContent += `</pre>`;
+
+                body.innerHTML = htmlContent;
+                modal.style.display = 'flex';
+
+            } catch (e) {
+                alert("Error executing flow: " + e);
+            } finally {
+                if(pollInterval) clearInterval(pollInterval);
+                document.querySelectorAll('.drawflow-node').forEach(el => el.classList.remove('running'));
+                
+                btn.innerText = "▶ Execute Workflow";
+                btn.style.background = "var(--success)";
+                btn.style.display = 'inline-block';
+                stopBtn.style.display = 'none';
+            }
+        }
+
+        async function stopWorkflow() {
+            try {
+                await fetch('/api/stop', { method: 'POST' });
+            } catch(e) {
+                console.error("Error stopping flow", e);
+            }
+        }
+
+        async function submitUserChat() {
+            const nodeId = document.getElementById('chat-node-id').value;
+            const text = document.getElementById('chat-input-text').value.trim();
+            if (!text) return;
+            
+            const btn = document.getElementById('chat-submit-btn');
+            btn.innerText = "Sending...";
+            btn.disabled = true;
+            
+            try {
+                const res = await fetch('/api/resume', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ node_id: nodeId, user_text: text })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('chat-overlay').style.display = 'none';
+                } else {
+                    alert("Error resuming flow: " + data.message);
+                }
+            } catch(e) {
+                alert("Error: " + e);
+            } finally {
+                btn.innerText = "Send";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
