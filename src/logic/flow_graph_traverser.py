@@ -201,6 +201,13 @@ class FlowGraphTraverser:
             elif source_node.type == NodeType.ROUTER:
                 true_pin = next((p for p in source_node.outputs if "true" in p.name.lower() or "yes" in p.name.lower()), None)
                 false_pin = next((p for p in source_node.outputs if "false" in p.name.lower() or "no" in p.name.lower()), None)
+                
+                # Fallback if no named pins found: first is True, second is False
+                if not true_pin and len(source_node.outputs) > 0:
+                    true_pin = source_node.outputs[0]
+                if not false_pin and len(source_node.outputs) > 1:
+                    false_pin = source_node.outputs[1]
+
                 output_decision = str(source_node.lastOutput or "").strip().upper()
                 raw_rule = str(source_node.ruleCondition or "").strip()
                 

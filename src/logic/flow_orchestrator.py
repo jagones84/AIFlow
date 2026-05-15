@@ -191,12 +191,21 @@ class FlowOrchestrator:
 
         if node.waitForAllInputs or is_merge_sync:
             conns = self.get_connections()
-            parent_ids = {c.fromNodeId for c in conns if c.toNodeId == node.id}
+            # Only consider connections that actually target this node
+            parent_conns = [c for c in conns if c.toNodeId == node.id]
+            parent_ids = {c.fromNodeId for c in parent_conns}
+            
             if parent_ids:
                 nodes = self.get_nodes()
+                # Find all parent nodes
                 parents = [n for n in nodes if n.id in parent_ids]
-                if any(p.status not in (NodeStatus.SUCCESS, NodeStatus.FAILURE, NodeStatus.SKIPPED) for p in parents):
-                    self._log(f"Node '{node.title}' waiting for inputs...")
+                
+                # We need to wait if ANY parent is still running or idle
+                # Note: SKIPPED is considered a terminal state, but if a node is IDLE it hasn't run yet
+                pending_parents = [p for p in parents if p.status in (NodeStatus.IDLE, NodeStatus.RUNNING, NodeStatus.WAITING_FOR_USER)]
+                
+                if pending_parents:
+                    self._log(f"Node '{node.title}' (ID: {node.id}) waiting for inputs from parents: {[p.id for p in pending_parents]}")
                     return
 
         started_at = time.time() * 1000

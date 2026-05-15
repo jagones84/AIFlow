@@ -187,32 +187,27 @@ class NodeExecutor:
                 output_items = input_items
 
             elif node.type == NodeType.CODE:
-                script = evaluator.evaluate(node.codeBody)
-                if not script or not script.strip():
+                code = evaluator.evaluate(node.codeBody or "")
+                
+                # Wrap code in a function to support 'return' statements
+                wrapped_code = f"def __user_code__():\n"
+                for line in code.split('\n'):
+                    wrapped_code += f"    {line}\n"
+                wrapped_code += "\nresult = __user_code__()"
+                
+                local_vars = {"input": input_items, "context": node.context}
+                try:
+                    exec(wrapped_code, {}, local_vars)
+                    output_items = local_vars.get("result", [])
+                    if not isinstance(output_items, list):
+                        output_items = [self._wrap_text_item(str(output_items))]
+                    output = f"Code executed successfully. Generated {len(output_items)} items."
+                except Exception as e:
+                    output = f"Error: {str(e)}"
                     success = False
-                    output = "Error: Code body is empty"
-                    output_items = [self._wrap_text_item(output)]
-                else:
-                    local_log_info(f"Executing {node.codeLanguage} script...")
-                    if node.codeLanguage == "python":
-                        # Simplistic execution for demonstration
-                        local_vars = {"input_items": [i.json_data for i in input_items], "output": ""}
-                        try:
-                            exec(script, {}, local_vars)
-                            output = str(local_vars.get("output", "Code executed successfully"))
-                            parsed = self._parse_legacy_string_to_items(output)
-                            output_items = parsed if parsed else [self._wrap_text_item(output)]
-                        except Exception as e:
-                            success = False
-                            output = f"Error: {str(e)}"
-                            output_items = [self._wrap_text_item(output)]
-                    else:
-                        output = f"Error: Unsupported code language: {node.codeLanguage}"
-                        success = False
-                        output_items = [self._wrap_text_item(output)]
 
             elif node.type == NodeType.AI_AGENT:
-                model_id = node.modelId or "gpt-4o-mini"
+                model_id = node.modelId
                 prompt = evaluator.evaluate(node.systemPrompt)
                 input_text = self._items_to_text(input_items) if input_items else node.lastInput or ""
                 
@@ -243,6 +238,8 @@ class NodeExecutor:
                         is_openrouter = True
                     elif "gpt" not in model_id.lower() and "claude" not in model_id.lower() and "gemini" not in model_id.lower() and "llama" not in model_id.lower():
                         is_openrouter = True
+                
+                local_log_info(f"Routing Decision: is_openrouter={is_openrouter} for model={model_id}")
                 
                 # Auto-inject today's date to prevent LLM hallucinations
                 from datetime import datetime
@@ -483,6 +480,11 @@ class NodeExecutor:
 
             elif node.type == NodeType.TOOL_EXECUTION:
                 tool_name = node.selectedToolName
+                # Use httpUrl or first available input as URL if not provided
+                url = evaluator.evaluate(node.httpUrl or "")
+                if not url and input_items:
+                    url = input_items[0].json_data.get("text", "") or str(input_items[0].json_data)
+                
                 if not tool_name:
                     success = False
                     output = "No tool selected."
@@ -753,16 +755,22 @@ class NodeExecutor:
 
             elif node.type == NodeType.MERGE:
                 payload = runtime_payloads.get(node.id, FlowPayload())
-                sorted_pins = sorted(payload.itemsByPinId.keys())
-                input1_items = payload.itemsByPinId.get(sorted_pins[0], []) if sorted_pins else []
-                input2_items = payload.itemsByPinId.get(sorted_pins[1], []) if len(sorted_pins) > 1 else []
+                # Use inputs list to find pins for robustness
+                input_pins = node.inputs
+                sorted_pin_ids = [p.id for p in input_pins] if input_pins else sorted(payload.itemsByPinId.keys())
+                
+                # Support more than 2 inputs by flattening them all if appending
                 all_items = payload.all_items()
+                
+                # Get specific inputs for operations that require pairs
+                input1_items = payload.itemsByPinId.get(sorted_pin_ids[0], []) if sorted_pin_ids else []
+                input2_items = payload.itemsByPinId.get(sorted_pin_ids[1], []) if len(sorted_pin_ids) > 1 else []
 
                 if node.mergeMode == MergeMode.APPEND:
                     output_items = all_items
-                    output = f"Merged {len(all_items)} item(s) from all inputs."
+                    output = f"Merged {len(all_items)} item(s) from all {len(sorted_pin_ids)} inputs."
                 elif node.mergeMode == MergeMode.WAIT:
-                    output_items = input1_items if input1_items else input2_items
+                    output_items = all_items # Pass through everything we waited for
                     output = f"Wait completed. Passing through {len(output_items)} item(s)."
                 elif node.mergeMode == MergeMode.CHOOSE_BRANCH:
                     idx = max(0, min(node.mergeOutputIndex, len(sorted_pins) - 1))

@@ -667,6 +667,10 @@
             });
             
             node.data.config = newConfig;
+            
+            // CRITICAL: Sync config fields to top-level node.data for backend compatibility
+            Object.assign(node.data, newConfig);
+            
             editor.updateNodeDataFromId(id, node.data);
             
             // Visual feedback
@@ -1025,6 +1029,17 @@
                     });
                 });
 
+                // Prepare final node object with defaults from schema
+                const finalConfig = {};
+                const typeSchema = (FORM_SCHEMA[nodeData.type] || []).concat(COMMON_SCHEMA);
+                typeSchema.forEach(field => {
+                    if (nodeData.config && nodeData.config[field.id] !== undefined) {
+                        finalConfig[field.id] = nodeData.config[field.id];
+                    } else {
+                        finalConfig[field.id] = field.default;
+                    }
+                });
+
                 nodes.push({
                     id: String(dfNode.id),
                     title: dfNode.name + " " + dfNode.id,
@@ -1032,7 +1047,7 @@
                     position: { x: dfNode.pos_x, y: dfNode.pos_y },
                     inputs: inputs,
                     outputs: outputs,
-                    ...nodeData.config
+                    ...finalConfig
                 });
             }
 

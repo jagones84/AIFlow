@@ -282,6 +282,8 @@ async def architect_action(req: ArchitectActionRequest):
                 if "config" not in n:
                     n["config"] = {}
                 n["config"].update(config)
+                # CRITICAL: Update top-level fields
+                n.update(config)
                 if "title" in req.params:
                     n["title"] = req.params["title"]
                 return {"status": "success", "message": f"Updated node {node_id}."}
@@ -330,7 +332,7 @@ async def architect(req: ArchitectRequest):
         from openai import OpenAI
         
         base_url = "https://api.openai.com/v1"
-        if "openrouter" in req.model.lower() or "/" in req.model or os.getenv("OPENROUTER_API_KEY"):
+        if "openrouter" in req.model.lower() or "/" in req.model:
             base_url = "https://openrouter.ai/api/v1"
             api_key = os.getenv("OPENROUTER_API_KEY")
             
@@ -351,7 +353,29 @@ async def architect(req: ArchitectRequest):
                             "title": {"type": "string", "description": "Display title"},
                             "x": {"type": "integer", "description": "X coordinate (e.g. 100, 400, 700)"},
                             "y": {"type": "integer", "description": "Y coordinate (e.g. 200, 300)"},
-                            "config": {"type": "object", "description": "Configuration object"}
+                            "config": {
+                                "type": "object", 
+                                "description": "Configuration properties for the node.",
+                                "properties": {
+                                    "userInstruction": {"type": "string", "description": "Text prompt for USER_INPUT"},
+                                    "isInteractive": {"type": "boolean", "description": "Wait for user (true/false)"},
+                                    "modelId": {"type": "string", "description": "AI model (e.g. x-ai/grok-4.1-fast)"},
+                                    "systemPrompt": {"type": "string", "description": "AI system prompt"},
+                                    "allowedTools": {"type": "array", "items": {"type": "string"}, "description": "Tools for AI (e.g. fetch_url, mcp__Brave Search)"},
+                                    "selectedToolName": {"type": "string", "description": "Tool name for TOOL_EXECUTION"},
+                                    "httpUrl": {"type": "string", "description": "URL for HTTP_REQUEST"},
+                                    "httpMethod": {"type": "string", "description": "GET, POST, etc."},
+                                    "ruleCondition": {"type": "string", "description": "Condition for ROUTER or FILTER"},
+                                    "routerMode": {"type": "string", "description": "SIMPLE_RULE or AI_LLM"},
+                                    "sortFieldName": {"type": "string"},
+                                    "sortOrder": {"type": "string"},
+                                    "limitCount": {"type": "integer"},
+                                    "mergeMode": {"type": "string"},
+                                    "fileName": {"type": "string"},
+                                    "waitForAllInputs": {"type": "boolean"}
+                                },
+                                "additionalProperties": True
+                            }
                         },
                         "required": ["type"]
                     }
@@ -381,7 +405,29 @@ async def architect(req: ArchitectRequest):
                         "type": "object",
                         "properties": {
                             "id": {"type": "string", "description": "Node ID to update"},
-                            "config": {"type": "object", "description": "New configuration properties"}
+                            "config": {
+                                "type": "object", 
+                                "description": "New configuration properties to update.",
+                                "properties": {
+                                    "userInstruction": {"type": "string", "description": "Text prompt for USER_INPUT"},
+                                    "isInteractive": {"type": "boolean", "description": "Wait for user (true/false)"},
+                                    "modelId": {"type": "string", "description": "AI model (e.g. x-ai/grok-4.1-fast)"},
+                                    "systemPrompt": {"type": "string", "description": "AI system prompt"},
+                                    "allowedTools": {"type": "array", "items": {"type": "string"}, "description": "Tools for AI (e.g. fetch_url, mcp__Brave Search)"},
+                                    "selectedToolName": {"type": "string", "description": "Tool name for TOOL_EXECUTION"},
+                                    "httpUrl": {"type": "string", "description": "URL for HTTP_REQUEST"},
+                                    "httpMethod": {"type": "string", "description": "GET, POST, etc."},
+                                    "ruleCondition": {"type": "string", "description": "Condition for ROUTER or FILTER"},
+                                    "routerMode": {"type": "string", "description": "SIMPLE_RULE or AI_LLM"},
+                                    "sortFieldName": {"type": "string"},
+                                    "sortOrder": {"type": "string"},
+                                    "limitCount": {"type": "integer"},
+                                    "mergeMode": {"type": "string"},
+                                    "fileName": {"type": "string"},
+                                    "waitForAllInputs": {"type": "boolean"}
+                                },
+                                "additionalProperties": True
+                            }
                         },
                         "required": ["id", "config"]
                     }
@@ -409,8 +455,57 @@ async def architect(req: ArchitectRequest):
         if base_url == "https://openrouter.ai/api/v1" and not target_model.startswith("openrouter/") and "/" not in target_model:
             target_model = f"openrouter/{target_model}"
             
+        node_descriptions = """
+• TRIGGER: Starts workflow. `triggerType` (MANUAL, SCHEDULE, WEBHOOK).
+• USER_INPUT: Prompts user or injects text. `userInstruction` (the prompt text), `isInteractive` (boolean).
+• AI_AGENT: Uses LLM. `modelId` (x-ai/grok-4.1-fast), `systemPrompt`, `allowedTools` (List of tool names).
+• TOOL_EXECUTION: Runs a tool. `selectedToolName`.
+• ROUTER: Splits flow. `routerMode` (AI_LLM, SIMPLE_RULE), `ruleCondition`.
+• HTTP_REQUEST: Makes API calls. `httpUrl`, `httpMethod` (GET, POST), `httpHeaders`, `httpBody`.
+• SET: Adds/modifies fields. `setFields` (List of objects: {"name": "key", "value": "val", "type": "string"}).
+• FILTER: Removes items. `ruleCondition` (e.g. expr:{{ $json.id }} == 1).
+• SORT: Sorts items. `sortFieldName`, `sortOrder` (asc/desc), `sortType`.
+• LIMIT: Limits items. `limitCount`, `limitOffset`.
+• AGGREGATE: Combines items. `aggregateMode`, `aggregateOutputField`.
+• SPLIT_OUT: Splits array into items. `splitOutField`.
+• REMOVE_DUPLICATES: Dedupes. `dedupeFields` (List of strings), `dedupeCompareAllFields` (bool).
+• MERGE: Combines branches. `mergeMode` (APPEND, WAIT, CHOOSE_BRANCH, COMBINE_BY_POSITION, MULTIPLEX).
+• VARIABLE_STORE: Saves/Reads variables. `variableKey`, `variableOperation` (READ, WRITE, APPEND).
+• FILE_SAVE: Saves output. `fileName`.
+• STOP_AND_ERROR: Stops flow. `errorMessage`.
+• CODE: Runs Python. `codeBody` (string with Python code).
+• SUMMARIZE: Summarizes items. `summarizeFields`, `summarizeOutputFormat`.
+• OUTPUT_DISPLAY: Final node to show results.
+
+COMMON FIELDS (Applicable to ALL nodes):
+- `waitForAllInputs`: (boolean) If true, the node waits for all incoming connections to provide at least one item before executing.
+- `continueOnError`: (boolean) If true, the flow continues even if this node fails.
+- `maxIterations`: (integer) Max times this node can execute in a loop.
+"""
+
         messages = [
-            {"role": "system", "content": "You are a master workflow architect for an n8n-like system. Build the user's requested workflow step by step using your tools (AddNode, ConnectNodes, UpdateNode). ALWAYS start with a TRIGGER node. \n\nIMPORTANT RULES:\n1. You can add multiple nodes at once by calling AddNode multiple times in the same turn.\n2. Do NOT repeatedly call UpdateNode on the same node with the same data. Once configured, move on.\n3. If you get an error from a tool, try to fix it, but do NOT get stuck in an infinite loop trying the exact same fix.\n4. When the graph is complete and all nodes are connected, you MUST call the `FinishDesign` tool immediately. Do not keep looping."},
+            {
+                "role": "system",
+                "content": f"""You are a master workflow architect for an n8n-like system. Build the user's requested workflow step by step using your tools (AddNode, ConnectNodes, UpdateNode).
+
+CRITICAL: FLOW STRUCTURE PRINCIPLES
+1. NEVER connect TRIGGER directly to AI_AGENT for user queries.
+   - WRONG: Trigger -> AI Agent
+   - RIGHT: Trigger -> User Input -> AI Agent
+2. USER_INPUT node usage:
+   - Use `userInstruction` for the text content (prompt or message).
+   - Set `isInteractive: false` (DEFAULT) if the text should be injected automatically.
+   - Set `isInteractive: true` ONLY if the workflow must stop and wait for a human to type something in the UI.
+3. AI_AGENT MUST have `modelId` (DEFAULT: "x-ai/grok-4.1-fast"), `systemPrompt`, and crucially `allowedTools` (e.g. ["fetch_url", "mcp__Brave Search", "mcp__Multi-Fetch"]) if it needs to search. Do NOT use "gpt-4o-mini" unless explicitly requested.
+4. EVERY node must be updated with appropriate config fields. Use the EXACT field names from the reference below.
+5. You can set `waitForAllInputs: true` on a MERGE node if it needs to wait for multiple branches.
+6. Always end with an OUTPUT_DISPLAY node.
+7. When the graph is complete, call FinishDesign immediately.
+
+NODE CONFIGURATION REFERENCE (EXACT FIELD NAMES):
+{node_descriptions}
+"""
+            },
             {"role": "user", "content": req.prompt}
         ]
         
@@ -455,6 +550,7 @@ async def architect(req: ArchitectRequest):
                 for tool_call in message.tool_calls:
                     name = tool_call.function.name
                     import json
+                    LogManager.info("Architect", f"Raw tool call arguments: {tool_call.function.arguments}")
                     try:
                         args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
                     except:
@@ -469,14 +565,24 @@ async def architect(req: ArchitectRequest):
                             existing_ids = [int(n.get("id", 0)) for n in current_architect_graph["nodes"] if str(n.get("id")).isdigit()]
                             node_id = str(max(existing_ids + [0]) + 1)
                         
+                        config = args.get("config", {})
+                        # Normalize boolean fields
+                        for bool_field in ["isInteractive", "waitForAllInputs", "continueOnError"]:
+                            if bool_field in config:
+                                if isinstance(config[bool_field], str):
+                                    config[bool_field] = config[bool_field].lower() == "true"
+                        
                         new_node = {
                             "id": node_id,
                             "type": args.get("type", "CODE"),
                             "title": args.get("title", args.get("type", "CODE")),
                             "pos_x": args.get("x", 100),
                             "pos_y": args.get("y", 100),
-                            "config": args.get("config", {})
+                            "config": config
                         }
+                        # Sync to top-level immediately
+                        new_node.update(config)
+                        
                         current_architect_graph["nodes"].append(new_node)
                         result_str = f"Added node {node_id}"
                         current_architect_graph["last_action"] = f"Added Node: {new_node['type']}"
@@ -494,6 +600,14 @@ async def architect(req: ArchitectRequest):
                     elif name == "UpdateNode":
                         node_id = str(args.get("id"))
                         updated = False
+                        config = args.get("config", {})
+                        
+                        # Normalize boolean fields
+                        for bool_field in ["isInteractive", "waitForAllInputs", "continueOnError"]:
+                            if bool_field in config:
+                                if isinstance(config[bool_field], str):
+                                    config[bool_field] = config[bool_field].lower() == "true"
+                                    
                         for n in current_architect_graph["nodes"]:
                             if str(n.get("id")) == node_id:
                                 if "config" not in n:
@@ -504,7 +618,9 @@ async def architect(req: ArchitectRequest):
                                 import copy
                                 old_config_str = json.dumps(n["config"], sort_keys=True)
                                 
-                                n["config"].update(args.get("config", {}))
+                                n["config"].update(config)
+                                # CRITICAL: Also update top-level node data for backend compatibility
+                                n.update(config)
                                 if "title" in args:
                                     n["title"] = args["title"]
                                     
@@ -567,10 +683,14 @@ async def architect(req: ArchitectRequest):
             nid = id_map[old_id]
             ntype = n["type"]
             html_content = f"<div class='title-box'>{ntype}</div><div class='box'>Auto-generated</div>"
+            config_data = n.get("config", {})
+            node_data_obj = {"type": ntype, "config": config_data}
+            node_data_obj.update(config_data) # Sync fields to top-level of data for UI completeness
+            
             df_data[nid] = {
                 "id": int(nid),
                 "name": ntype,
-                "data": {"type": ntype, "config": n.get("config", {})},
+                "data": node_data_obj,
                 "class": ntype.lower(),
                 "html": html_content,
                 "typenode": False,

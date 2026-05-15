@@ -150,8 +150,8 @@ class NodeData(BaseModel):
     outputs: List[Pin] = Field(default_factory=list)
     
     # Configuration
-    modelId: Optional[str] = None
-    systemPrompt: str = ""
+    modelId: str = "x-ai/grok-4.1-fast"
+    systemPrompt: str = "You are a helpful assistant."
     allowedTools: List[str] = Field(default_factory=list)
     
     selectedToolName: Optional[str] = None
