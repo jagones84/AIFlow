@@ -1,0 +1,772 @@
+{
+	"mcpServers": {
+		"android-adb-2": {
+			"command": "cmd.exe",
+			"args": [
+				"/c",
+				"set PATH=C:\\Users\\giova\\AppData\\Local\\Android\\Sdk\\platform-tools;%PATH% && npx -y android-debug-bridge-mcp"
+			],
+			"disabled": true
+		},
+		"Chrome DevTools MCP": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"chrome-devtools-mcp@latest"
+			],
+			"env":           {},
+			"fromGalleryId": "byted-mcp.chrome-devtools-mcp",
+			"disabled":      true
+		},
+		"discord": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"mcp-discord",
+				"--config",
+				"YOUR_DISCORD_BOT_TOKEN"
+			],
+			"env": {
+				"DISCORD_TOKEN": "YOUR_DISCORD_TOKEN"
+			},
+			"disabled": true
+		},
+		"forge-mcp": {
+			"command": "F:\\MCP\\IMAGE_GEN\\python_3.10\\python.exe",
+			"args": [
+				"F:\\MCP\\IMAGE_GEN\\MCP\\forge-mcp\\forge_server.py"
+			],
+			"env": {
+				"FORGE_URL":  "http://127.0.0.1:7860",
+				"OUTPUT_DIR": "F:\\MCP\\IMAGE_GEN\\output"
+			},
+			"disabled": true
+		},
+		"harmonyos": {
+			"command": "C:\\Users\\giova\\.local\\bin\\uv.exe",
+			"args": [
+				"--directory",
+				"F:\\MCP\\REMOTE_CTRL\\HARMONYOS CONTROL",
+				"run",
+				"server.py"
+			],
+			"disabled": true
+		},
+		"HuggingFace Hub": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"mcp-remote",
+				"https://huggingface.co/mcp",
+				"--header",
+				"Authorization: Bearer YOUR_HF_TOKEN"
+			],
+			"disabled": true
+		},
+		"justwatch": {
+			"command": "uvx",
+			"args": [
+				"mcp-justwatch"
+			],
+			"env": {
+				"JUSTWATCH_COUNTRY": "IT"
+			},
+			"disabled": true
+		},
+		"n8n-docs-kapa": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"mcp-remote",
+				"https://n8n.mcp.kapa.ai/"
+			],
+			"disabled":      true,
+			"timeout":       600,
+			"transportType": "stdio"
+		},
+		"n8n-mcp": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"n8n-mcp"
+			],
+			"env": {
+				"MCP_MODE":               "stdio",
+				"LOG_LEVEL":              "error",
+				"DISABLE_CONSOLE_OUTPUT": "true"
+			},
+			"disabled":      true,
+			"timeout":       600,
+			"transportType": "stdio"
+		},
+		"nsfw-image-gen": {
+			"command": "F:\\MCP\\IMAGE_GEN\\MODELS\\HeartsyncNSFW-Uncensored-image\\venv\\Scripts\\python.exe",
+			"args": [
+				"F:\\MCP\\IMAGE_GEN\\MCP\\HeartsyncNSFW-Uncensored-image-MCP\\server.py"
+			],
+			"disabled": true
+		},
+		"nsfw-video": {
+			"command": "f:\\MCP\\VIDEO\\MODELS\\NSFW-Uncensored-video2\\venv\\Scripts\\python.exe",
+			"args": [
+				"f:\\MCP\\VIDEO\\MCP\\nsfw-video-mcp\\server.py"
+			],
+			"disabled": true
+		},
+		"Playwright": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@executeautomation/playwright-mcp-server"
+			],
+			"env":           {},
+			"fromGalleryId": "executeautomation.mcp-playwright",
+			"disabled":      true
+		},
+		"python-toolbox": {
+			"command": "F:/MCP/AI/PYTHONTOOLBOX/.venv/Scripts/python.exe",
+			"args": [
+				"-m",
+				"mcp_python_toolbox"
+			],
+			"disabled": true
+		},
+		"ralph-openhands": {
+			"command": "f:\\MCP\\AI\\RALPH\\.venv\\Scripts\\python.exe",
+			"args": [
+				"f:\\MCP\\AI\\RALPH\\scripts\\launch_openhands_mcp.py",
+				"--mode",
+				"stdio"
+			],
+			"env": {
+				"LLM_API_KEY":   "YOUR_OPENROUTER_KEY",
+				"LLM_MODEL":     "x-ai/grok-4.1-fast",
+				"LLM_BASE_URL":  "https://openrouter.ai/api/v1",
+				"MCP_TRANSPORT": "stdio",
+				"PYTHONPATH":    "f:\\MCP\\AI\\RALPH"
+			},
+			"disabled": true
+		},
+		"RapidAPI Hub - Amazon Data": {
+			"command": "npx",
+			"args": [
+				"mcp-remote",
+				"https://mcp.rapidapi.com",
+				"--header",
+				"x-api-host: real-time-amazon-data.p.rapidapi.com",
+				"--header",
+				"x-api-key: 7b3418d576mshc5af9e6295fbda4p164812jsn40d790e64261"
+			],
+			"disabled": true
+		},
+		"RapidAPI Hub - eBay Data Hub": {
+			"command": "npx",
+			"args": [
+				"mcp-remote",
+				"https://mcp.rapidapi.com",
+				"--header",
+				"x-api-host: ebay-data-hub.p.rapidapi.com",
+				"--header",
+				"x-api-key: 7b3418d576mshc5af9e6295fbda4p164812jsn40d790e64261"
+			],
+			"disabled": true
+		},
+		"RapidAPI Hub - Movies Ratings": {
+			"command": "npx",
+			"args": [
+				"mcp-remote",
+				"https://mcp.rapidapi.com",
+				"--header",
+				"x-api-host: movies-ratings2.p.rapidapi.com",
+				"--header",
+				"x-api-key: 7b3418d576mshc5af9e6295fbda4p164812jsn40d790e64261"
+			],
+			"disabled": true
+		},
+		"RapidAPI-OpenCritic API": {
+			"command": "npx",
+			"args": [
+				"mcp-remote",
+				"https://mcp.rapidapi.com",
+				"--header",
+				"x-api-host: opencritic-api.p.rapidapi.com",
+				"--header",
+				"x-api-key: 7b3418d576mshc5af9e6295fbda4p164812jsn40d790e64261"
+			],
+			"disabled": true
+		},
+		"rf-detr": {
+			"command": "F:\\MCP\\VISION\\MCP\\RF-DETR\\venv\\Scripts\\python.exe",
+			"args": [
+				"F:\\MCP\\VISION\\MCP\\RF-DETR\\mcp_server\\server.py"
+			],
+			"disabled": true
+		},
+		"TaskManager": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@kazuph/mcp-taskmanager"
+			],
+			"env": {
+				"TASK_MANAGER_FILE_PATH": "C:\\Users\\giova\\Documents\\tasks.json"
+			},
+			"fromGalleryId": "kazuph.mcp-taskmanager",
+			"disabled":      true,
+			"transportType": "stdio"
+		},
+		"trellis-3d": {
+			"command": "f:\\MCP\\3D_GEN\\MODELS\\TRELLIS\\venv\\Scripts\\python.exe",
+			"args": [
+				"f:\\MCP\\3D_GEN\\MCP\\trellis-mcp\\server.py"
+			],
+			"cwd": "f:\\MCP\\3D_GEN\\MODELS\\TRELLIS",
+			"env": {
+				"SPARSE_CONV_BACKEND":      "spconv",
+				"ATTN_BACKEND":             "xformers",
+				"OPENCV_IO_ENABLE_OPENEXR": "1",
+				"PYTORCH_CUDA_ALLOC_CONF":  "expandable_segments:True",
+				"HF_TOKEN":                 "YOUR_HF_TOKEN"
+			},
+			"disabled": true
+		},
+		"tts-mcp": {
+			"command": "node",
+			"args": [
+				"F:/MCP/AUDIO/MCP/tts-mcp/dist/bin/tts-mcp-server.js",
+				"--voice",
+				"nova",
+				"--model",
+				"gpt-4o-mini-tts",
+				"--format",
+				"wav",
+				"--base-url",
+				"http://localhost:3000/v1"
+			],
+			"env": {
+				"OPENAI_API_KEY": "sk-local-no-key"
+			},
+			"disabled": true
+		},
+		"unity-mcp": {
+			"command": "F:\\MCP\\GAMES\\UNITY\\server_bin\\unity-mcp-server.exe",
+			"args": [
+				"--port=8081",
+				"--client-transport=stdio"
+			],
+			"disabled": true
+		},
+		"wan2.2-video-generator": {
+			"command": "F:\\MCP\\VIDEO\\MODELS\\wan2-2-fp8da-aoti-faster\\venv\\Scripts\\python.exe",
+			"args": [
+				"F:\\MCP\\VIDEO\\MCP\\wan2-2-mcp\\server.py"
+			],
+			"env": {
+				"PYTHONUTF8": "1"
+			},
+			"disabled": true
+		},
+		"windows-cli": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@simonb97/server-win-cli"
+			],
+			"disabled": true
+		},
+		"pdf-reader": {
+			"command": "docker",
+			"args": [
+				"run",
+				"-i",
+				"--rm",
+				"-v",
+				"C:/:/pdfs",
+				"mcp/pdf-reader"
+			],
+			"disabled":    true,
+			"autoApprove": [],
+			"alwaysAllow": [
+				"read_local_pdf",
+				"read_pdf_url"
+			]
+		},
+		"llamaindex_db_tools": {
+			"command": "C:\\AI_MODELS\\CLONED_REPOSITORIES\\SELF_Llamaindex\\llamaindex-env\\Scripts\\python.exe",
+			"args": [
+				"C:\\AI_MODELS\\CLONED_REPOSITORIES\\SELF_Llamaindex\\MCP\\llamaindex_server.py"
+			],
+			"workingDirectory": "C:\\AI_MODELS\\CLONED_REPOSITORIES\\SELF_Llamaindex",
+			"disabled":         true,
+			"timeout":          3600,
+			"alwaysAllow": [
+				"delete_database_storage_tool",
+				"create_database_tool",
+				"query_persistent_database_tool",
+				"add_documents_to_database_tool",
+				"inspect_database_storage_tool"
+			]
+		},
+		"telegram-mcp": {
+			"disabled":        true,
+			"autoStart":       true,
+			"runInBackground": true,
+			"timeout":         600,
+			"command":         "C:\\Users\\giova\\OneDrive\\Documents\\Cline\\MCP\\telegram-mcp\\.venv\\Scripts\\python.exe",
+			"args": [
+				"C:\\Users\\giova\\OneDrive\\Documents\\Cline\\MCP\\telegram-mcp\\main.py"
+			],
+			"env": {
+				"TELEGRAM_API_ID":    "29813221",
+				"TELEGRAM_API_HASH":  "5fb39145a705f4dc3b71c37552c02539",
+				"TELEGRAM_BOT_TOKEN": "7737497525:AAEk_ZUy1Q8gFbMNvsgOQlt4Hwe2-M6mNog"
+			},
+			"transportType": "stdio",
+			"alwaysAllow": [
+				"get_chats",
+				"get_messages",
+				"get_chat_info",
+				"start_listening",
+				"stop_listening",
+				"list_active_listeners",
+				"get_new_messages",
+				"send_message"
+			]
+		},
+		"filesystem": {
+			"command": "cmd",
+			"args": [
+				"/c",
+				"npx",
+				"-y",
+				"@modelcontextprotocol/server-filesystem",
+				"C:/Users/giova",
+				"C:/PYTHON",
+				"C:/AI_MODELS",
+				"F:/MCP",
+				"F:/REPOSITORIES",
+				"F:/PROGRAMS"
+			],
+			"env": {},
+			"transportType": "stdio",
+			"alwaysAllow": [
+				"read_file",
+				"read_multiple_files",
+				"write_file",
+				"edit_file",
+				"create_directory",
+				"list_directory",
+				"directory_tree",
+				"move_file",
+				"search_files",
+				"get_file_info",
+				"list_allowed_directories",
+				"list_files"
+			],
+			"disabled": false
+		},
+		"mcp-server-chart": {
+			"command": "cmd",
+			"args": [
+				"/c",
+				"npx",
+				"-y",
+				"@antv/mcp-server-chart"
+			],
+			"alwaysAllow": [
+				"create_chart",
+				"generate_visualization",
+				"render_graph"
+			],
+			"disabled": true
+		},
+		"simple-datetime-server": {
+			"timeout": 600,
+			"command": "node",
+			"args": [
+				"F:\\MCP\\MISC\\datetime-server\\index.js"
+			],
+			"env":           {},
+			"transportType": "stdio",
+			"alwaysAllow": [
+				"get_current_datetime"
+			]
+		},
+		"treefolder-mcp-server": {
+			"command": "node",
+			"args": [
+				"C:/AI_MODELS/CLONED_REPOSITORIES/SELF_TreeFolderGen/MCP/launch.js"
+			],
+			"env": {
+				"PYTHONPATH": "C:/AI_MODELS/CLONED_REPOSITORIES/TreeFolderGen"
+			},
+			"transportType": "stdio",
+			"alwaysAllow": [
+				"generate_directory_tree"
+			],
+			"disabled": true
+		},
+		"aider-mcp": {
+			"command": "F:/MCP/AI/AIDER_CODE/.venv/Scripts/python.exe",
+			"args": [
+				"-m",
+				"aider_mcp_server",
+				"--editor-model",
+				"xai/grok-code-fast-1",
+				"--architect-model",
+				"openrouter/openai/gpt-5-mini",
+				"--cwd",
+				"F:/MCP/AI/AIDER_CODE"
+			],
+			"env": {
+				"OPENROUTER_API_KEY": "YOUR_OPENROUTER_KEY"
+			},
+			"disabled": true
+		},
+		"alpaca-trading": {
+			"command": "F:\\MCP\\TRADING\\MCP\\ALPACA_TRADING\\venv\\Scripts\\python.exe",
+			"args": [
+				"F:\\MCP\\TRADING\\MCP\\ALPACA_TRADING\\start.py"
+			],
+			"cwd": "F:\\MCP\\TRADING\\MCP\\ALPACA_TRADING",
+			"env": {
+				"PYTHONPATH": "F:\\MCP\\TRADING\\MODEL\\ALPACA_TRADING;F:\\MCP\\TRADING\\MCP\\ALPACA_TRADING"
+			},
+			"autoApprove": [],
+			"disabled":    true
+		},
+		"android-mcp": {
+			"command": "cmd.exe",
+			"args": [
+				"/c",
+				"set PATH=C:\\Users\\giova\\AppData\\Local\\Android\\Sdk\\platform-tools;C:\\Users\\giova\\.local\\bin;%PATH% && uv --directory F:\\MCP\\REMOTE_CTRL\\android-mcp-server run -q android-mcp --device 44121FDJH0025N"
+			],
+			"disabled": true
+		},
+		"android-mcp-wireless": {
+			"command": "cmd.exe",
+			"args": [
+				"/c",
+				"set PATH=C:\\Users\\giova\\AppData\\Local\\Android\\Sdk\\platform-tools;C:\\Users\\giova\\.local\\bin;%PATH% && uv --directory F:\\MCP\\REMOTE_CTRL\\android-mcp-server run -q android-mcp --device 192.168.1.18:35527"
+			],
+			"disabled": true
+		},
+		"audio-tweaker": {
+			"command": "node",
+			"args": [
+				"F:/MCP/AUDIO/MCP/mcp-audio-tweaker/build/index.js"
+			],
+			"disabled": true
+		},
+		"Brave Search": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@modelcontextprotocol/server-brave-search"
+			],
+			"env": {
+				"BRAVE_API_KEY": "BSALtScFLHG7moag89jncc9yq9cWcZi"
+			},
+			"fromGalleryId": "modelcontextprotocol.servers_brave-search",
+			"disabled":      false
+		},
+		"comfyui": {
+			"command": "f:\\PROGRAMS\\ComfyUI_windows_portable\\python_embeded\\python.exe",
+			"args": [
+				"f:\\PROGRAMS\\ComfyUI_windows_portable\\comfyui-mcp\\server.py"
+			],
+			"env": {
+				"COMFYUI_SERVER_ADDRESS": "127.0.0.1:8188"
+			},
+			"disabled": true,
+			"alwaysAllow": [
+				"list_workflows",
+				"generate_image"
+			]
+		},
+		"comfyui-dgspark": {
+			"command": "f:\\PROGRAMS\\ComfyUI_windows_portable\\python_embeded\\python.exe",
+			"args": [
+				"f:\\PROGRAMS\\ComfyUI_windows_portable\\comfyui-mcp-dgspark\\comfy_dgspark_server.py"
+			],
+			"env": {
+				"COMFYUI_SERVER_ADDRESS": "127.0.0.1:8189",
+				"SSH_TUNNEL_REMOTE":      "jagones@10.0.0.1",
+				"SSH_TUNNEL_DEST":        "localhost:8188"
+			},
+			"disabled": true
+		},
+		"context7": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@upstash/context7-mcp@latest"
+			],
+			"env": {
+				"DEFAULT_MINIMUM_TOKENS": "10000"
+			},
+			"fromGalleryId": "upstash.context7",
+			"disabled":      true
+		},
+		"Docker": {
+			"command": "uvx",
+			"args": [
+				"docker-mcp"
+			],
+			"env":           {},
+			"fromGalleryId": "QuantGeekDev.docker-mcp"
+		},
+		"dolphin-vision-captioner": {
+			"command": "F:\\MCP\\VISION\\MCP\\Dolphin-Vision-MCP\\venv\\Scripts\\python.exe",
+			"args": [
+				"F:\\MCP\\VISION\\MCP\\Dolphin-Vision-MCP\\server.py"
+			],
+			"disabled": true
+		},
+		"DuckDuckGo Search Server": {
+			"command": "uvx",
+			"args": [
+				"duckduckgo-mcp-server"
+			],
+			"env":           {},
+			"fromGalleryId": "nickclyde.duckduckgo-mcp-server",
+			"disabled":      true
+		},
+		"Fetch": {
+			"command": "uvx",
+			"args": [
+				"mcp-server-fetch"
+			],
+			"env":           {},
+			"fromGalleryId": "modelcontextprotocol.servers_fetch",
+			"disabled":      false
+		},
+		"ffmpeg": {
+			"command": "python",
+			"args": [
+				"-m",
+				"ffmpeg_mcp_lite"
+			],
+			"disabled": true
+		},
+		"gemini-browser": {
+			"command": "node",
+			"args": [
+				"F:/MCP/PRODUCTIVITY/MCP/gemini-browser-mcp/dist/bin/gemini-browser-mcp-server.js"
+			],
+			"env": {
+				"GEMINI_EMAIL":    "Jagones84@gmail.com",
+				"GEMINI_PASSWORD": "Starfield_84"
+			},
+			"disabled": true
+		},
+		"gitmcp": {
+			"url":         "https://gitmcp.io/docs",
+			"autoApprove": [],
+			"disabled": true
+		},
+		"graphiti": {
+			"command": "F:/MCP/KNOWLEDGE_RAG/GRAPHIITI/venv/Scripts/python.exe",
+			"args": [
+				"main.py",
+				"--transport",
+				"stdio"
+			],
+			"cwd": "F:/MCP/KNOWLEDGE_RAG/GRAPHIITI/mcp_server",
+			"env": {
+				"OPENAI_API_KEY": "YOUR_OPENROUTER_KEY",
+				"OPENAI_API_URL": "https://openrouter.ai/api/v1",
+				"FALKORDB_URI":   "redis://localhost:6379"
+			},
+			"disabled": true
+		},
+		"marker": {
+			"command": "F:\\REPOSITORIES\\Marker\\venv\\Scripts\\python.exe",
+			"args": [
+				"F:\\REPOSITORIES\\Marker\\MCP server\\server.py"
+			],
+			"env": {
+				"TORCH_DEVICE":   "cuda",
+				"GOOGLE_API_KEY": "INSERISCI_QUI_LA_TUA_CHIAVE"
+			},
+			"disabled": true
+		},
+		"mcp-reasoner": {
+			"command": "node",
+			"args": [
+				"F:\\MCP\\AI\\REASONER\\mcp-reasoner\\dist\\index.js"
+			]
+		},
+		"Memory": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@modelcontextprotocol/server-memory"
+			],
+			"env": {
+				"MEMORY_FILE_PATH": "memory.json"
+			},
+			"fromGalleryId": "modelcontextprotocol.servers_memory",
+			"disabled":      false
+		},
+		"Multi-Fetch": {
+			"command": "cmd.exe",
+			"args": [
+				"/c",
+				"npx",
+				"-y",
+				"@lmcc-dev/mult-fetch-mcp-server"
+			],
+			"env": {
+				"MCP_LANG": "Auto-detected based on system"
+			},
+			"fromGalleryId": "lmcc-dev.mult-fetch-mcp-server",
+			"disabled":      false
+		},
+		"notebooklm-mcp": {
+			"command":  "F:\\MCP\\PRODUCTIVITY\\MCP\\notebooklm-2\\.venv\\Scripts\\notebooklm-mcp.exe",
+			"disabled": true
+		},
+		"open-manus": {
+			"command": "python",
+			"args": [
+				"f:/MCP/AI/OPENMANUS/mcp_server.py"
+			],
+			"env": {
+				"PYTHONPATH": "f:/MCP/AI/OPENMANUS"
+			},
+			"disabled": true
+		},
+		"openrouterai": {
+			"command": "npx",
+			"args": [
+				"@mcpservers/openrouterai"
+			],
+			"env": {
+				"OPENROUTER_API_KEY":       "YOUR_OPENROUTER_KEY",
+				"OPENROUTER_DEFAULT_MODEL": "openrouter/auto",
+				"OPENROUTER_MAX_TOKENS":    "1024",
+				"OPENROUTER_PROVIDER_SORT": "price"
+			},
+			"disabled": true
+		},
+		"Puppeteer": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@modelcontextprotocol/server-puppeteer"
+			],
+			"env":           {},
+			"fromGalleryId": "modelcontextprotocol.servers_puppeteer",
+			"disabled":      true
+		},
+		"python-local": {
+			"command": "C:\\Users\\giova\\.deno\\bin\\deno.exe",
+			"args": [
+				"run",
+				"-A",
+				"jsr:@changhc/mcp-run-python-local",
+				"stdio"
+			]
+		},
+		"ragie-mcp-server": {
+			"command": "node",
+			"args": [
+				"f:/MCP/KNOWLEDGE_RAG/RAJIE/ragie-mcp-server/build/index.js"
+			],
+			"env": {
+				"RAGIE_API_KEY": "tnt_7C1VJhxv5eV_g9ojU5vFsir86NsTqgD2dNeHXB6gSJ5pe32pnxuiaLw"
+			},
+			"disabled": true
+		},
+		"RapidAPI Hub - News Data": {
+			"command": "npx",
+			"args": [
+				"mcp-remote",
+				"https://mcp.rapidapi.com",
+				"--header",
+				"x-api-host: real-time-news-data.p.rapidapi.com",
+				"--header",
+				"x-api-key: 7b3418d576mshc5af9e6295fbda4p164812jsn40d790e64261"
+			],
+			"disabled": true
+		},
+		"Sequential Thinking": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@modelcontextprotocol/server-sequential-thinking"
+			],
+			"env":           {},
+			"fromGalleryId": "modelcontextprotocol.servers_sequentialthinking",
+			"disabled":      true
+		},
+		"github": {
+			"command": "docker",
+			"args": [
+				"run",
+				"-i",
+				"--rm",
+				"-e",
+				"GITHUB_PERSONAL_ACCESS_TOKEN",
+				"ghcr.io/github/github-mcp-server"
+			],
+			"env": {
+				"GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_TOKEN"
+			},
+			"disabled": true
+		},
+		"soprano-tts": {
+			"command": "f:\\MCP\\AUDIO\\MODELS\\Soprano-TTS\\venv\\Scripts\\python.exe",
+			"args": [
+				"f:\\MCP\\AUDIO\\MCP\\Soprano-TTS-MCP\\server.py"
+			],
+			"disabled": true
+		},
+		"Swiss MCP": {
+			"command": "F:\\MCP\\AI\\SWISS\\swiss-mcp\\.venv\\Scripts\\python.exe",
+			"args": [
+				"F:\\MCP\\AI\\SWISS\\swiss-mcp\\server.py"
+			],
+			"env":         {},
+			"description": "Swiss Army Knife for orchestrating multi-step AI tasks and tool coordination.",
+			"icon":        "🇨🇭",
+			"disabled":    true
+		},
+		"titan-memory": {
+			"command": "node",
+			"args": [
+				"f:\\MCP\\AI\\titan_memory\\build\\index.js"
+			],
+			"workingDirectory": "f:\\MCP\\AI\\titan_memory",
+			"env": {
+				"NODE_ENV": "production"
+			},
+			"disabled": true
+		},
+		"ucpf": {
+			"command": "node",
+			"args": [
+				"f:/MCP/AI/DEEPLUCID3D/build/index.js"
+			],
+			"env":         {},
+			"autoApprove": []
+		},
+		"yt-whisper": {
+			"command": "f:\\MCP\\AUDIO\\MODELS\\RVC-Repo\\venv\\Scripts\\python.exe",
+			"args": [
+				"F:\\MCP\\AUDIO\\MCP\\yt-whisper\\server.py"
+			]
+		},
+		"GitKraken": {
+			"args": [
+				"mcp",
+				"--host=trae",
+				"--source=gitlens",
+				"--scheme=trae"
+			],
+			"command": "c:\\Users\\giova\\AppData\\Roaming\\Trae\\User\\globalStorage\\eamodio.gitlens\\gk.exe",
+			"type":    "stdio"
+		}
+	}
+}
