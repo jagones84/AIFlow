@@ -41,13 +41,9 @@ class FlowOrchestrator:
         self._monitor_task = None
 
     def _log(self, message: str):
-        entry = f"[INFO {time.strftime('%H:%M:%S')}] {message}"
-        self.execution_logs.append(entry)
         LogManager.info("FlowOrchestrator", message)
 
     def _log_error(self, message: str):
-        entry = f"[ERROR {time.strftime('%H:%M:%S')}] {message}"
-        self.execution_logs.append(entry)
         LogManager.error("FlowOrchestrator", message)
 
     async def start_flow(self):

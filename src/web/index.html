@@ -869,7 +869,7 @@
             const modelStr = prompt("Enter the model for the Architect (default: x-ai/grok-4.1-fast):", "x-ai/grok-4.1-fast");
             if (!modelStr) return;
 
-            const defaultPrompt = "Create a workflow that starts with a TRIGGER, asks the user for a research topic using USER_INPUT, passes it to an AI_AGENT to search the web, and finally uses FILE_SAVE to store the results.";
+            const defaultPrompt = "Design a comprehensive test workflow that uses the most advanced nodes available. Create an AI_AGENT with access to tools, include a feedback loop with the user (USER_INPUT with 'Wait for User'), and use various logic nodes (like ROUTER, LOOP, MERGE) to thoroughly test the engine's capabilities.";
             const promptStr = prompt("Describe the workflow you want to build:", defaultPrompt);
             if(!promptStr) return;
             
@@ -898,32 +898,30 @@
             }
             overlay.style.display = 'flex';
             
+            // Start global log polling during Architect execution so user sees real-time log updates
+            if (!window.globalLogPoller) {
+                window.globalLogPoller = setInterval(fetchAndUpdateLogs, 1000);
+            }
+            
             // Add a log entry in the UI so user knows it started
             const logContent = document.getElementById('log-content');
             if (logContent) {
-                logContent.innerHTML += `<div class="log-line log-info">[Architect] Starting design process for: "${promptStr}"</div>`;
+                const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+                logContent.innerHTML += `<div class="log-line log-info">[INFO ${time}] [Architect] Starting design process for: "${promptStr}"</div>`;
                 const panel = document.getElementById('global-log-panel');
                 if (panel) panel.scrollTop = panel.scrollHeight;
             }
             
-            // Poll for architect graph updates while designing
+            // Poll for architect graph updates while designing (for the overlay text)
             const pollInterval = setInterval(async () => {
                 try {
                     const res = await fetch('/api/architect/graph');
                     if (res.ok) {
                         const graphData = await res.json();
-                        if (logContent && graphData.last_action) {
-                            // Only append if it's a new action
-                            if (window.lastArchitectAction !== graphData.last_action) {
-                                window.lastArchitectAction = graphData.last_action;
-                                logContent.innerHTML += `<div class="log-line">[Architect Agent] ${graphData.last_action}</div>`;
-                                const panel = document.getElementById('global-log-panel');
-                                if (panel) panel.scrollTop = panel.scrollHeight;
-                                
-                                // Update overlay text
-                                const overlayStatus = document.getElementById('architect-overlay-status');
-                                if (overlayStatus) overlayStatus.innerText = graphData.last_action;
-                            }
+                        if (graphData.last_action) {
+                            // Update overlay text
+                            const overlayStatus = document.getElementById('architect-overlay-status');
+                            if (overlayStatus) overlayStatus.innerText = graphData.last_action;
                         }
                     }
                 } catch(e) {}
@@ -946,6 +944,10 @@
                 alert("Error connecting to Architect: " + e);
             } finally {
                 clearInterval(pollInterval);
+                if (window.globalLogPoller) {
+                    clearInterval(window.globalLogPoller);
+                    window.globalLogPoller = null;
+                }
                 if (btn) {
                     btn.innerText = btn.dataset.originalText || "🪄 Architect";
                     btn.style.opacity = "1";
@@ -953,6 +955,34 @@
                 }
                 if (overlay) overlay.style.display = 'none';
             }
+        }
+
+        async function fetchAndUpdateLogs() {
+            try {
+                const res = await fetch('/api/status');
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    // Update Logs
+                    if (data.logs && data.logs.length > 0) {
+                        const logContent = document.getElementById('log-content');
+                        const newHtml = data.logs.map(log => {
+                            let cls = 'log-line';
+                            if (log.includes('[ERROR')) cls += ' log-error';
+                            else if (log.includes('[INFO')) cls += ' log-info';
+                            else if (log.includes('[WARN')) cls += ' log-warn';
+                            return `<div class="${cls}">${log}</div>`;
+                        }).join('');
+                        
+                        if (logContent.innerHTML !== newHtml) {
+                            logContent.innerHTML = newHtml;
+                            // Auto scroll to bottom
+                            const panel = document.getElementById('global-log-panel');
+                            panel.scrollTop = panel.scrollHeight;
+                        }
+                    }
+                }
+            } catch(e) {}
         }
 
         let pollInterval = null;
@@ -1036,15 +1066,20 @@
                         // Update Logs
                         if (data.logs && data.logs.length > 0) {
                             const logContent = document.getElementById('log-content');
-                            logContent.innerHTML = data.logs.map(log => {
+                            const newHtml = data.logs.map(log => {
                                 let cls = 'log-line';
                                 if (log.includes('[ERROR')) cls += ' log-error';
                                 else if (log.includes('[INFO')) cls += ' log-info';
+                                else if (log.includes('[WARN')) cls += ' log-warn';
                                 return `<div class="${cls}">${log}</div>`;
                             }).join('');
-                            // Auto scroll to bottom
-                            const panel = document.getElementById('global-log-panel');
-                            panel.scrollTop = panel.scrollHeight;
+                            
+                            if (logContent.innerHTML !== newHtml) {
+                                logContent.innerHTML = newHtml;
+                                // Auto scroll to bottom
+                                const panel = document.getElementById('global-log-panel');
+                                panel.scrollTop = panel.scrollHeight;
+                            }
                         }
 
                         // Check for waiting nodes (USER_INPUT pause)

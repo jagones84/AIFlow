@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from src.models.node_models import FlowProjectData
 from src.main import FlowApp
+from src.utils.managers import LogManager
 
 # Load environment variables
 env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
@@ -23,6 +24,7 @@ current_flow_app = None
 @app.get("/api/status")
 async def get_status():
     global current_flow_app
+    logs = LogManager.get_history()
     if current_flow_app:
         nodes = current_flow_app.get_nodes()
         waiting_nodes = [n.id for n in nodes if n.status.value == "WAITING_FOR_USER"]
@@ -41,9 +43,9 @@ async def get_status():
             "running_nodes": [n.id for n in nodes if n.status.value == "RUNNING"],
             "waiting_nodes": waiting_nodes,
             "last_ai_message": last_ai_message,
-            "logs": current_flow_app.orchestrator.execution_logs
+            "logs": logs
         }
-    return {"running_nodes": [], "waiting_nodes": [], "last_ai_message": "", "logs": []}
+    return {"running_nodes": [], "waiting_nodes": [], "last_ai_message": "", "logs": logs}
 
 class ResumeRequest(BaseModel):
     node_id: str
@@ -416,126 +418,134 @@ async def architect(req: ArchitectRequest):
         MAX_LOOPS = 20
         
         while loop_count < MAX_LOOPS:
-            loop_count += 1
-            print(f"[Architect] Loop {loop_count} starting...")
-            current_architect_graph["last_action"] = f"Thinking (Loop {loop_count})..."
-            
-            resp = client.chat.completions.create(
-                model=target_model,
-                messages=messages,
-                tools=tools
-            )
-            
-            message = resp.choices[0].message
-            
-            if not message.tool_calls:
-                print(f"[Architect] No tool calls, AI said: {message.content}")
-                current_architect_graph["last_action"] = "Analyzing feedback..."
-                # If no tool calls, it might just be chatting. Try to prompt it to finish or continue.
-                messages.append({"role": "assistant", "content": message.content or ""})
-                messages.append({"role": "user", "content": "Please continue building or call FinishDesign if you are done."})
-                continue
+            try:
+                loop_count += 1
+                LogManager.info("Architect", f"Loop {loop_count} starting...")
+                current_architect_graph["last_action"] = f"Thinking (Loop {loop_count})..."
                 
-            # Add assistant message with tool calls
-            clean_msg = {
-                "role": "assistant",
-                "content": message.content or "",
-                "tool_calls": message.model_dump(exclude_unset=True).get("tool_calls")
-            }
-            messages.append(clean_msg)
-            
-            finished = False
-            for tool_call in message.tool_calls:
-                name = tool_call.function.name
-                import json
-                try:
-                    args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
-                except:
-                    args = {}
-                    
-                result_str = ""
+                resp = client.chat.completions.create(
+                    model=target_model,
+                    messages=messages,
+                    tools=tools
+                )
                 
-                if name == "AddNode":
-                    # Generate new max ID if not provided
-                    node_id = args.get("id")
-                    if not node_id:
-                        existing_ids = [int(n.get("id", 0)) for n in current_architect_graph["nodes"] if str(n.get("id")).isdigit()]
-                        node_id = str(max(existing_ids + [0]) + 1)
+                message = resp.choices[0].message
+                
+                if not message.tool_calls:
+                    LogManager.info("Architect", f"No tool calls, AI said: {message.content}")
+                    current_architect_graph["last_action"] = "Analyzing feedback..."
+                    # If no tool calls, it might just be chatting. Try to prompt it to finish or continue.
+                    messages.append({"role": "assistant", "content": message.content or ""})
+                    messages.append({"role": "user", "content": "Please continue building or call FinishDesign if you are done."})
+                    continue
                     
-                    new_node = {
-                        "id": node_id,
-                        "type": args.get("type", "CODE"),
-                        "title": args.get("title", args.get("type", "CODE")),
-                        "pos_x": args.get("x", 100),
-                        "pos_y": args.get("y", 100),
-                        "config": args.get("config", {})
-                    }
-                    current_architect_graph["nodes"].append(new_node)
-                    result_str = f"Added node {node_id}"
-                    current_architect_graph["last_action"] = f"Added Node: {new_node['type']}"
-                    print(f"[Architect] {result_str}")
-                    
-                elif name == "ConnectNodes":
-                    current_architect_graph["connections"].append({
-                        "fromNode": str(args.get("fromNode")),
-                        "toNode": str(args.get("toNode"))
-                    })
-                    result_str = f"Connected {args.get('fromNode')} to {args.get('toNode')}"
-                    current_architect_graph["last_action"] = result_str
-                    print(f"[Architect] {result_str}")
-                    
-                elif name == "UpdateNode":
-                    node_id = str(args.get("id"))
-                    updated = False
-                    for n in current_architect_graph["nodes"]:
-                        if str(n.get("id")) == node_id:
-                            if "config" not in n:
-                                n["config"] = {}
-                            
-                            # Check if the AI is trying to update with the exact same config it already has
-                            # to prevent infinite loops
-                            import copy
-                            old_config_str = json.dumps(n["config"], sort_keys=True)
-                            
-                            n["config"].update(args.get("config", {}))
-                            if "title" in args:
-                                n["title"] = args["title"]
-                                
-                            new_config_str = json.dumps(n["config"], sort_keys=True)
-                            
-                            if old_config_str == new_config_str and "title" not in args:
-                                result_str = f"Warning: You just updated node {node_id} with the exact same configuration it already had. Do not repeat this action. Call FinishDesign if you are done."
-                            else:
-                                result_str = f"Updated node {node_id} successfully."
-                                
-                            updated = True
-                            
-                    if not updated:
-                        result_str = f"Error: Node {node_id} not found."
+                # Add assistant message with tool calls
+                clean_msg = {
+                    "role": "assistant",
+                    "content": message.content or "",
+                    "tool_calls": message.model_dump(exclude_unset=True).get("tool_calls")
+                }
+                messages.append(clean_msg)
+                
+                finished = False
+                
+                tool_names = [tc.function.name for tc in message.tool_calls]
+                LogManager.info("Architect", f"AI decided to call tools: {tool_names}")
+                
+                for tool_call in message.tool_calls:
+                    name = tool_call.function.name
+                    import json
+                    try:
+                        args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+                    except:
+                        args = {}
                         
-                    current_architect_graph["last_action"] = f"Updated node {node_id}"
-                    print(f"[Architect] {result_str}")
+                    result_str = ""
                     
-                elif name == "GetCurrentGraph":
-                    result_str = json.dumps(current_architect_graph)
-                    current_architect_graph["last_action"] = "Inspecting current graph state..."
-                    print(f"[Architect] GetCurrentGraph")
+                    if name == "AddNode":
+                        # Generate new max ID if not provided
+                        node_id = args.get("id")
+                        if not node_id:
+                            existing_ids = [int(n.get("id", 0)) for n in current_architect_graph["nodes"] if str(n.get("id")).isdigit()]
+                            node_id = str(max(existing_ids + [0]) + 1)
+                        
+                        new_node = {
+                            "id": node_id,
+                            "type": args.get("type", "CODE"),
+                            "title": args.get("title", args.get("type", "CODE")),
+                            "pos_x": args.get("x", 100),
+                            "pos_y": args.get("y", 100),
+                            "config": args.get("config", {})
+                        }
+                        current_architect_graph["nodes"].append(new_node)
+                        result_str = f"Added node {node_id}"
+                        current_architect_graph["last_action"] = f"Added Node: {new_node['type']}"
+                        LogManager.info("Architect", result_str)
+                        
+                    elif name == "ConnectNodes":
+                        current_architect_graph["connections"].append({
+                            "fromNode": str(args.get("fromNode")),
+                            "toNode": str(args.get("toNode"))
+                        })
+                        result_str = f"Connected {args.get('fromNode')} to {args.get('toNode')}"
+                        current_architect_graph["last_action"] = result_str
+                        LogManager.info("Architect", result_str)
+                        
+                    elif name == "UpdateNode":
+                        node_id = str(args.get("id"))
+                        updated = False
+                        for n in current_architect_graph["nodes"]:
+                            if str(n.get("id")) == node_id:
+                                if "config" not in n:
+                                    n["config"] = {}
+                                
+                                # Check if the AI is trying to update with the exact same config it already has
+                                # to prevent infinite loops
+                                import copy
+                                old_config_str = json.dumps(n["config"], sort_keys=True)
+                                
+                                n["config"].update(args.get("config", {}))
+                                if "title" in args:
+                                    n["title"] = args["title"]
+                                    
+                                new_config_str = json.dumps(n["config"], sort_keys=True)
+                                
+                                if old_config_str == new_config_str and "title" not in args:
+                                    result_str = f"Warning: You just updated node {node_id} with the exact same configuration it already had. Do not repeat this action. Call FinishDesign if you are done."
+                                else:
+                                    result_str = f"Updated node {node_id} successfully."
+                                    
+                                updated = True
+                                
+                        if not updated:
+                            result_str = f"Error: Node {node_id} not found."
+                            
+                        current_architect_graph["last_action"] = f"Updated node {node_id}"
+                        LogManager.info("Architect", result_str)
+                        
+                    elif name == "GetCurrentGraph":
+                        result_str = json.dumps(current_architect_graph)
+                        current_architect_graph["last_action"] = "Inspecting current graph state..."
+                        LogManager.info("Architect", "GetCurrentGraph called")
+                        
+                    elif name == "FinishDesign":
+                        finished = True
+                        result_str = "Design marked as finished."
+                        current_architect_graph["last_action"] = "Finished designing workflow."
+                        LogManager.info("Architect", "FinishDesign called")
+                        
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": result_str,
+                        "name": name
+                    })
                     
-                elif name == "FinishDesign":
-                    finished = True
-                    result_str = "Design marked as finished."
-                    current_architect_graph["last_action"] = "Finished designing workflow."
-                    print(f"[Architect] FinishDesign")
-                    
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": result_str,
-                    "name": name
-                })
-                
-            if finished:
-                break
+                if finished:
+                    break
+            except Exception as te:
+                LogManager.error("Architect", f"OpenAI API Error: {str(te)}")
+                return {"status": "error", "message": f"OpenRouter API Error: {str(te)}"}
         
         # Now convert current_architect_graph to Drawflow export
         df_data = {}
@@ -603,7 +613,7 @@ async def architect(req: ArchitectRequest):
         return {"status": "success", "drawflow": drawflow_export}
         
     except Exception as e:
-        print(f"Architect error: {e}")
+        LogManager.error("Architect", f"Architect error: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/tools")
@@ -681,4 +691,4 @@ async def run_flow(project_data: FlowProjectData):
     }
 
 if __name__ == "__main__":
-    uvicorn.run("src.server:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("src.server:app", host="0.0.0.0", port=48321, reload=True)

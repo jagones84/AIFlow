@@ -4,6 +4,7 @@ from datetime import datetime
 
 class LogManager:
     _logger = None
+    _history = []
 
     @classmethod
     def get_logger(cls):
@@ -35,16 +36,31 @@ class LogManager:
         return cls._logger
 
     @classmethod
+    def _append_history(cls, level: str, module: str, message: str):
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        entry = f"[{level} {timestamp}] [{module}] {message}"
+        cls._history.append(entry)
+        if len(cls._history) > 1000:
+            cls._history.pop(0)
+
+    @classmethod
+    def get_history(cls):
+        return cls._history
+
+    @classmethod
     def info(cls, module: str, message: str):
         cls.get_logger().info(f"[{module}] {message}")
+        cls._append_history("INFO", module, message)
 
     @classmethod
     def warn(cls, module: str, message: str):
         cls.get_logger().warning(f"[{module}] {message}")
+        cls._append_history("WARN", module, message)
 
     @classmethod
     def error(cls, module: str, message: str):
         cls.get_logger().error(f"[{module}] {message}")
+        cls._append_history("ERROR", module, message)
 
 class VariableManager:
     _variables = {}
