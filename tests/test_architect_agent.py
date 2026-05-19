@@ -39,7 +39,7 @@ def test_architect_api():
     print("\n--- 2. Testing AI Architect Endpoint ---")
     payload = {
         "prompt": "Create a flow that triggers, gets user input, passes it to an AI_AGENT with Brave Search, and saves to file.",
-        "model": "x-ai/grok-4.1-fast"
+        "model": "google/gemini-3.1-flash-lite"
     }
     print("Sending complex prompt to Architect AI... (This will take 5-15 seconds as it loops)")
     

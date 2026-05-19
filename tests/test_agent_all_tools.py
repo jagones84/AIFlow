@@ -26,7 +26,7 @@ def test_agent_tools_comprehensive():
         type=NodeType.AI_AGENT,
         position={"x":0, "y":0},
         systemPrompt="You are a helpful AI. Answer the user's prompt by using the provided tools. Be concise.",
-        modelId="x-ai/grok-4.1-fast",
+        modelId="google/gemini-3.1-flash-lite",
         allowedTools=[
             "mcp__Docker",
             "mcp__Fetch",

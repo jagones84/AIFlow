@@ -17,7 +17,7 @@ def test_openrouter_basic_completion():
 
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     response = client.chat.completions.create(
-        model="x-ai/grok-4.1-fast",
+        model="google/gemini-3.1-flash-lite",
         messages=[{"role": "user", "content": "Respond with exactly: ok"}],
         temperature=0,
     )

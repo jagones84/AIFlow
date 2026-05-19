@@ -476,7 +476,7 @@
                 { id: 'webhookPath', label: 'Webhook Path', type: 'text', default: 'my-hook' }
             ],
             'AI_AGENT': [
-                { id: 'modelId', label: 'Model ID', type: 'text', default: 'x-ai/grok-4.1-fast' },
+                { id: 'modelId', label: 'Model ID', type: 'text', default: 'google/gemini-3.1-flash-lite' },
                 { id: 'systemPrompt', label: 'System Prompt', type: 'textarea', default: 'You are a helpful assistant.' },
                 { id: 'allowedTools', label: 'Allowed Tools', type: 'multiselect', options: [], default: ['mcp__Brave Search', 'mcp__Multi-Fetch', 'fetch_url'] }
             ],
@@ -870,7 +870,7 @@
                 return;
             }
 
-            const modelStr = prompt("Enter the model for the Architect (default: x-ai/grok-4.1-fast):", "x-ai/grok-4.1-fast");
+            const modelStr = prompt("Enter the model for the Architect (default: google/gemini-3.1-flash-lite):", "google/gemini-3.1-flash-lite");
             if (!modelStr) return;
 
             const defaultPrompt = "Design a comprehensive test workflow that uses the most advanced nodes available. Create an AI_AGENT with access to tools, include a feedback loop with the user (USER_INPUT with 'Wait for User'), and use various logic nodes (like ROUTER, LOOP, MERGE) to thoroughly test the engine's capabilities.";
