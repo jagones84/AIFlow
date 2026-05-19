@@ -80,13 +80,21 @@ class PcBridgeClient:
         }
         res = self.send_rpc_request(server_name, rpc_req)
         if res["success"]:
-            # Parse MCP tool result format
             response_data = res["response"]
             if "result" in response_data and "content" in response_data["result"]:
                 content = response_data["result"]["content"]
-                if isinstance(content, list) and len(content) > 0:
-                    return str(content[0].get("text", content))
-                return str(content)
-            return json.dumps(response_data)
+                return self._parse_content_static(content)
+            return f"MCP Tool Error: {json.dumps(response_data)}"
         else:
             return f"MCP Tool Error: {res.get('error', 'Unknown')}"
+
+    @staticmethod
+    def _parse_content_static(content) -> str:
+        if isinstance(content, list) and len(content) > 0:
+            item = content[0]
+            if isinstance(item, dict):
+                text = item.get("text")
+                if text is not None:
+                    return str(text)
+            return json.dumps(content)
+        return str(content)
