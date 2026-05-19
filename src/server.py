@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sys
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
@@ -757,6 +758,51 @@ NODE CONFIGURATION REFERENCE (EXACT FIELD NAMES):
 async def get_tools():
     from src.logic.tools import ToolRegistry
     return {"tools": ToolRegistry.get_available_tools()}
+
+@app.get("/api/debug")
+async def debug_info():
+    """Debug endpoint to check environment and MCP status."""
+    import traceback
+    from src.logic.tools import ToolRegistry
+    from src.logic.mcp_client import NativeMcpClient
+    
+    mcp = NativeMcpClient()
+    
+    # Try to get Brave Search tools
+    brave_tools = []
+    try:
+        config = ToolRegistry._load_mcp_config()
+        brave_config = config.get("Brave Search", {})
+        if brave_config and not brave_config.get("disabled", False):
+            success = mcp.start_server("Brave Search", brave_config)
+            if success:
+                brave_tools = mcp.get_tools("Brave Search")
+    except Exception as e:
+        brave_tools = [f"Error: {str(e)}"]
+    
+    return {
+        "env_keys": {
+            "OPENROUTER_API_KEY": bool(os.getenv("OPENROUTER_API_KEY")),
+            "BRAVE_API_KEY": bool(os.getenv("BRAVE_API_KEY")),
+        },
+        "mcp_servers": list(ToolRegistry._load_mcp_config().keys()),
+        "brave_tools": brave_tools,
+        "python_version": sys.version,
+        "cwd": os.getcwd(),
+    }
+
+@app.get("/api/test-tool")
+async def test_tool():
+    """Test Brave Search tool directly."""
+    try:
+        from src.logic.tools import ToolRegistry
+        result = ToolRegistry.execute_tool("mcp__Brave Search", {
+            "mcp_tool_name": "brave_web_search",
+            "mcp_tool_args": {"query": "test"}
+        })
+        return {"success": True, "result": str(result)[:500]}
+    except Exception as e:
+        return {"success": False, "error": str(e), "trace": traceback.format_exc()}
 
 @app.post("/api/run")
 async def run_flow(project_data: FlowProjectData):
