@@ -1,40 +1,22 @@
-import asyncio
 import os
-from dotenv import load_dotenv
-
-# Load env
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from src.logic.node_executor import NodeExecutor
-from src.models.node_models import Node, Position
+from src.models.node_models import FlowItem, FlowPayload, NodeData, NodeType
 
-async def test_ai_hallucination():
+
+def test_ai_agent_fallback_without_keys(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
     executor = NodeExecutor()
-    
-    # We create a fake node for AI
-    ai_node = Node(
-        id="node_1",
-        name="AI_AGENT",
-        type="AI_AGENT",
-        position=Position(x=0, y=0),
-        data={
-            "prompt": "You are a helpful AI.",
-            "model": "x-ai/grok-4.1-fast",
-            "provider": "openrouter"
-        },
-        allowedTools=["mcp__brave_search", "mcp__multi_fetch"]
-    )
-    
-    inputs = {"input": "latest soccer italian match with result, search for it. Today is 14 May 2026."}
-    
-    print("Executing AI Agent...")
-    result = await executor.execute(ai_node, inputs)
-    
-    print("\n--- RESULTS ---")
-    print(f"Status: {result.status}")
-    print(f"Output: {result.output}")
-    if result.error:
-         print(f"Error: {result.error}")
-    
-if __name__ == "__main__":
-    asyncio.run(test_ai_hallucination())
+    node = NodeData(title="AI_AGENT", type=NodeType.AI_AGENT, modelId="x-ai/grok-4.1-fast", systemPrompt="You are a helpful AI.")
+
+    payload = FlowPayload.from_items([FlowItem(json={"text": "hello"})])
+    res = executor.execute(node, payload.all_items(), [node], {node.id: payload})
+
+    assert res.success is True
+    assert res.outputItems
+    assert "Simulated AI Response" in (res.outputItems[0].json_data.get("text") or "")

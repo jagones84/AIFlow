@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 from dotenv import load_dotenv
+import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -9,7 +10,10 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 from src.logic.node_executor import NodeExecutor
 from src.models.node_models import NodeData, NodeType, FlowPayload, FlowItem
 
-async def test_agent_soccer():
+pytestmark = pytest.mark.integration
+
+
+def test_agent_soccer():
     executor = NodeExecutor()
     
     ai_node = NodeData(
@@ -31,7 +35,7 @@ async def test_agent_soccer():
     
     print("Executing AI Agent for soccer query...")
     payload = FlowPayload.from_items([FlowItem(json={"text": inputs["input"]})])
-    result = await asyncio.to_thread(executor.execute, ai_node, payload.all_items(), [ai_node], {ai_node.id: payload})
+    result = executor.execute(ai_node, payload.all_items(), [ai_node], {ai_node.id: payload})
     
     print("\n--- RESULTS ---")
     print(f"Success: {result.success}")
@@ -41,4 +45,4 @@ async def test_agent_soccer():
          print(f"Error: {result.output}")
     
 if __name__ == "__main__":
-    asyncio.run(test_agent_soccer())
+    test_agent_soccer()

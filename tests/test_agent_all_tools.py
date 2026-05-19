@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 from dotenv import load_dotenv
+import pytest
 
 # Add parent dir to path so we can import src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -12,7 +13,10 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 from src.logic.node_executor import NodeExecutor
 from src.models.node_models import NodeData, NodeType
 
-async def test_agent_tools_comprehensive():
+pytestmark = pytest.mark.integration
+
+
+def test_agent_tools_comprehensive():
     executor = NodeExecutor()
     
     # We create a fake node for AI with multiple MCP tools
@@ -53,4 +57,4 @@ Report a numbered summary of the result of all 5 tool executions."""
          print(f"Error: {result.output}")
     
 if __name__ == "__main__":
-    asyncio.run(test_agent_tools_comprehensive())
+    test_agent_tools_comprehensive()

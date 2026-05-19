@@ -4,9 +4,13 @@ import sys
 import json
 import requests
 from dotenv import load_dotenv
+import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
+pytestmark = pytest.mark.integration
+
 
 def test_architect_api():
     base_url = "http://localhost:8000/api/architect"

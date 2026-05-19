@@ -45,8 +45,14 @@ Then open your browser and navigate to: [http://localhost:8000/](http://localhos
 
 ## Testing
 
-To run the test suite and verify that the AI Agents use the MCP tools correctly:
+Run unit tests:
 
 ```bash
-python tests/test_agent_all_tools.py
+pytest
+```
+
+Run integration tests (requires API keys / external services):
+
+```bash
+pytest -m integration
 ```
