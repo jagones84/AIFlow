@@ -391,7 +391,8 @@ class NodeExecutor:
                             
                     except Exception as e:
                         import traceback
-                        traceback.print_exc()
+                        self._log_error(f"OpenRouter API Error: {str(e)}")
+                        self._log_error(f"Traceback: {traceback.format_exc()}")
                         success = False
                         output = f"OpenRouter API Error: {str(e)}"
                 
