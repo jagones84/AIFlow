@@ -22,7 +22,7 @@ def test_agent_soccer():
         type=NodeType.AI_AGENT,
         position={"x":0, "y":0},
         systemPrompt="You are a helpful AI. Answer the user's prompt by using the provided tools. Be concise.",
-        modelId="google/gemini-3.1-flash-lite",
+        modelId="qwen/qwen3.6-35b-a3b",
         allowedTools=[
             "mcp__Brave Search",
             "mcp__Multi-Fetch"

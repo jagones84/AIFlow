@@ -28,7 +28,7 @@ def test_openrouter_tool_call_message_formatting():
     ]
 
     messages = [{"role": "user", "content": "Use the web_search tool with query 'example.com'."}]
-    res1 = client.chat.completions.create(model="google/gemini-3.1-flash-lite", messages=messages, tools=ai_tools, temperature=0.2)
+    res1 = client.chat.completions.create(model="qwen/qwen3.6-35b-a3b", messages=messages, tools=ai_tools, temperature=0.2)
     message = res1.choices[0].message
     if not message.tool_calls:
         pytest.skip("Model did not call tools; cannot validate tool-call formatting regression")
@@ -39,5 +39,5 @@ def test_openrouter_tool_call_message_formatting():
     for tc in message.tool_calls:
         messages.append({"role": "tool", "tool_call_id": tc.id, "content": "ok", "name": tc.function.name})
 
-    res2 = client.chat.completions.create(model="google/gemini-3.1-flash-lite", messages=messages, tools=ai_tools, temperature=0.2)
+    res2 = client.chat.completions.create(model="qwen/qwen3.6-35b-a3b", messages=messages, tools=ai_tools, temperature=0.2)
     assert (res2.choices[0].message.content or "").strip()

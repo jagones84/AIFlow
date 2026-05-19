@@ -327,7 +327,7 @@ async def get_flow_diagnostics():
 
 class ArchitectRequest(BaseModel):
     prompt: str
-    model: str = "google/gemini-3.1-flash-lite"
+    model: str = "qwen/qwen3.6-35b-a3b"
     currentGraph: dict = None
 
 @app.post("/api/architect")
@@ -376,7 +376,7 @@ async def architect(req: ArchitectRequest):
                                 "properties": {
                                     "userInstruction": {"type": "string", "description": "Text prompt for USER_INPUT"},
                                     "isInteractive": {"type": "boolean", "description": "Wait for user (true/false)"},
-                                    "modelId": {"type": "string", "description": "AI model (e.g. google/gemini-3.1-flash-lite)"},
+                                    "modelId": {"type": "string", "description": "AI model (e.g. qwen/qwen3.6-35b-a3b)"},
                                     "systemPrompt": {"type": "string", "description": "AI system prompt"},
                                     "allowedTools": {"type": "array", "items": {"type": "string"}, "description": "Tools for AI (e.g. fetch_url, mcp__Brave Search)"},
                                     "selectedToolName": {"type": "string", "description": "Tool name for TOOL_EXECUTION"},
@@ -428,7 +428,7 @@ async def architect(req: ArchitectRequest):
                                 "properties": {
                                     "userInstruction": {"type": "string", "description": "Text prompt for USER_INPUT"},
                                     "isInteractive": {"type": "boolean", "description": "Wait for user (true/false)"},
-                                    "modelId": {"type": "string", "description": "AI model (e.g. google/gemini-3.1-flash-lite)"},
+                                    "modelId": {"type": "string", "description": "AI model (e.g. qwen/qwen3.6-35b-a3b)"},
                                     "systemPrompt": {"type": "string", "description": "AI system prompt"},
                                     "allowedTools": {"type": "array", "items": {"type": "string"}, "description": "Tools for AI (e.g. fetch_url, mcp__Brave Search)"},
                                     "selectedToolName": {"type": "string", "description": "Tool name for TOOL_EXECUTION"},
@@ -475,7 +475,7 @@ async def architect(req: ArchitectRequest):
         node_descriptions = """
 • TRIGGER: Starts workflow. `triggerType` (MANUAL, SCHEDULE, WEBHOOK).
 • USER_INPUT: Prompts user or injects text. `userInstruction` (the prompt text), `isInteractive` (boolean).
-• AI_AGENT: Uses LLM. `modelId` (google/gemini-3.1-flash-lite), `systemPrompt`, `allowedTools` (List of tool names).
+• AI_AGENT: Uses LLM. `modelId` (qwen/qwen3.6-35b-a3b), `systemPrompt`, `allowedTools` (List of tool names).
 • TOOL_EXECUTION: Runs a tool. `selectedToolName`.
 • ROUTER: Splits flow. `routerMode` (AI_LLM, SIMPLE_RULE), `ruleCondition`.
 • HTTP_REQUEST: Makes API calls. `httpUrl`, `httpMethod` (GET, POST), `httpHeaders`, `httpBody`.
@@ -513,7 +513,7 @@ CRITICAL: FLOW STRUCTURE PRINCIPLES
    - Use `userInstruction` for the text content (prompt or message).
    - Set `isInteractive: false` (DEFAULT) if the text should be injected automatically.
    - Set `isInteractive: true` ONLY if the workflow must stop and wait for a human to type something in the UI.
-3. AI_AGENT MUST have `modelId` (DEFAULT: "google/gemini-3.1-flash-lite"), `systemPrompt`, and crucially `allowedTools` (e.g. ["fetch_url", "mcp__Brave Search", "mcp__Multi-Fetch"]) if it needs to search. Do NOT use "gpt-4o-mini" unless explicitly requested.
+3. AI_AGENT MUST have `modelId` (DEFAULT: "qwen/qwen3.6-35b-a3b"), `systemPrompt`, and crucially `allowedTools` (e.g. ["fetch_url", "mcp__Brave Search", "mcp__Multi-Fetch"]) if it needs to search. Do NOT use "gpt-4o-mini" unless explicitly requested.
 4. EVERY node must be updated with appropriate config fields. Use the EXACT field names from the reference below.
 5. You can set `waitForAllInputs: true` on a MERGE node if it needs to wait for multiple branches.
 6. Always end with an OUTPUT_DISPLAY node.

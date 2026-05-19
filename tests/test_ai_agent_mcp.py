@@ -45,7 +45,7 @@ def test_openrouter_with_mcp_tool_call_roundtrip():
 
     messages = [{"role": "user", "content": "Search the web for 'OpenAI' and summarize in one sentence."}]
     response = client.chat.completions.create(
-        model="google/gemini-3.1-flash-lite",
+        model="qwen/qwen3.6-35b-a3b",
         messages=messages,
         tools=ai_tools,
         temperature=0.2,
@@ -75,6 +75,6 @@ def test_openrouter_with_mcp_tool_call_roundtrip():
         tool_result = ToolRegistry.execute_tool(f"mcp__{server_name}", {"mcp_tool_name": tc.function.name, "mcp_tool_args": args})
         messages.append({"role": "tool", "tool_call_id": tc.id, "content": str(tool_result), "name": tc.function.name})
 
-    second_response = client.chat.completions.create(model="google/gemini-3.1-flash-lite", messages=messages, temperature=0.2)
+    second_response = client.chat.completions.create(model="qwen/qwen3.6-35b-a3b", messages=messages, temperature=0.2)
     final_content = second_response.choices[0].message.content or ""
     assert final_content.strip()

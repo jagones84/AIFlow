@@ -12,7 +12,7 @@ def test_ai_agent_fallback_without_keys(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
 
     executor = NodeExecutor()
-    node = NodeData(title="AI_AGENT", type=NodeType.AI_AGENT, modelId="google/gemini-3.1-flash-lite", systemPrompt="You are a helpful AI.")
+    node = NodeData(title="AI_AGENT", type=NodeType.AI_AGENT, modelId="qwen/qwen3.6-35b-a3b", systemPrompt="You are a helpful AI.")
 
     payload = FlowPayload.from_items([FlowItem(json={"text": "hello"})])
     res = executor.execute(node, payload.all_items(), [node], {node.id: payload})
