@@ -381,6 +381,7 @@ class NodeExecutor:
                                 })
                                 
                             local_log_info(f"Submitting tool results back to LLM...")
+                            kwargs["messages"] = messages
                             response = client.chat.completions.create(**kwargs)
                             message = response.choices[0].message
 
