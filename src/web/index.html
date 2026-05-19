@@ -700,17 +700,30 @@
                     const ytEl = document.getElementById('youtube-key');
                     const ghEl = document.getElementById('github-key');
                     
-                    if(okEl) okEl.value = data.openai || '';
-                    if(akEl) akEl.value = data.anthropic || '';
-                    if(orEl) orEl.value = data.openrouter || '';
-                    if(gmEl) gmEl.value = data.gemini || '';
-                    if(grEl) grEl.value = data.groq || '';
-                    if(brEl) brEl.value = data.brave || '';
-                    if(tvEl) tvEl.value = data.tavily || '';
-                    if(hfEl) hfEl.value = data.huggingface || '';
-                    if(mbEl) mbEl.value = data.mapbox || '';
-                    if(ytEl) ytEl.value = data.youtube || '';
-                    if(ghEl) ghEl.value = data.github || '';
+                    function applySecretField(el, hasFlag, rawValue) {
+                        if (!el) return;
+                        if (!el.dataset.defaultPlaceholder) el.dataset.defaultPlaceholder = el.placeholder || '';
+                        const hasKey = Boolean(hasFlag) || Boolean(rawValue);
+                        el.dataset.hasKey = hasKey ? "1" : "0";
+                        el.value = rawValue || "";
+                        if (hasKey && !rawValue) {
+                            el.placeholder = "Saved (hidden)";
+                        } else {
+                            el.placeholder = el.dataset.defaultPlaceholder;
+                        }
+                    }
+                    
+                    applySecretField(okEl, data.has_openai, data.openai);
+                    applySecretField(akEl, data.has_anthropic, data.anthropic);
+                    applySecretField(orEl, data.has_openrouter, data.openrouter);
+                    applySecretField(gmEl, data.has_gemini, data.gemini);
+                    applySecretField(grEl, data.has_groq, data.groq);
+                    applySecretField(brEl, data.has_brave, data.brave);
+                    applySecretField(tvEl, data.has_tavily, data.tavily);
+                    applySecretField(hfEl, data.has_huggingface, data.huggingface);
+                    applySecretField(mbEl, data.has_mapbox, data.mapbox);
+                    applySecretField(ytEl, data.has_youtube, data.youtube);
+                    applySecretField(ghEl, data.has_github, data.github);
                     
                     const modal = document.getElementById('settings-modal');
                     if(modal) modal.style.display = 'flex';
