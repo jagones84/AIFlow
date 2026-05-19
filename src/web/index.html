@@ -1173,6 +1173,30 @@
                     throw new Error(result.error || 'Unknown error during flow execution');
                 }
                 
+                if (result.status === 'running') {
+                    // Poll for results until flow completes
+                    let pollCount = 0;
+                    const maxPolls = 600; // 5 minutes max
+                    
+                    while (pollCount < maxPolls) {
+                        await new Promise(r => setTimeout(r, 500));
+                        const statusRes = await fetch('/api/results');
+                        const statusText = await statusRes.text();
+                        
+                        try {
+                            result = JSON.parse(statusText);
+                        } catch (e) {
+                            pollCount++;
+                            continue;
+                        }
+                        
+                        if (!result.running) {
+                            break;
+                        }
+                        pollCount++;
+                    }
+                }
+                
                 // Sort results topologically for display
                 const nodeMap = {};
                 result.results.forEach(r => nodeMap[r.id] = r);

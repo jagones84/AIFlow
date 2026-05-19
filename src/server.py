@@ -809,13 +809,32 @@ async def run_flow(project_data: FlowProjectData):
     global current_flow_app
     import time
     import traceback
+    import asyncio
     
     try:
         flow_app = FlowApp(project_data)
         current_flow_app = flow_app
+        
+        asyncio.create_task(run_flow_background(flow_app))
+        
+        return {
+            "status": "running", 
+            "message": "Flow started"
+        }
+    except Exception as e:
+        LogManager.error("API", f"Error executing flow: {str(e)}\n{traceback.format_exc()}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+async def run_flow_background(flow_app):
+    """Run flow in background to avoid proxy timeouts."""
+    import time
+    try:
         await flow_app.orchestrator.start_flow()
         
-        timeout = 300  # Increased to 5 minutes to allow complex LLM tasks (like multi-fetch scraping)
+        timeout = 300
         start_time = time.time()
         
         while flow_app.orchestrator.is_flow_running and time.time() - start_time < timeout:
@@ -823,66 +842,59 @@ async def run_flow(project_data: FlowProjectData):
             
         if flow_app.orchestrator.is_flow_running:
             flow_app.orchestrator.stop_flow()
-            flow_app.orchestrator.execution_logs.append("Execution timed out or paused waiting for user input.")
-            
-        nodes = flow_app.get_nodes()
-        current_flow_app = None
-        
-        # Extract results
-        results = []
-        
-        # Try to sort nodes topologically (by execution order based on connections)
-        # This ensures the UI displays the results in the correct visual flow order
-        sorted_nodes = []
-        connections = flow_app.get_connections()
-        
-        # Find start nodes (no incoming connections)
-        start_nodes = [n for n in nodes if not any(c.toNodeId == n.id for c in connections)]
-        visited = set()
-        
-        def visit(node_id):
-            if node_id in visited:
-                return
-            visited.add(node_id)
-            node = next((n for n in nodes if n.id == node_id), None)
-            if node:
-                sorted_nodes.append(node)
-                # Find children
-                children = [c.toNodeId for c in connections if c.fromNodeId == node_id]
-                for child_id in children:
-                    visit(child_id)
-                    
-        for start_node in start_nodes:
-            visit(start_node.id)
-            
-        # Add any disconnected nodes
-        for n in nodes:
-            if n.id not in visited:
-                sorted_nodes.append(n)
-                
-        for n in sorted_nodes:
-            results.append({
-                "id": n.id,
-                "title": n.title,
-                "status": n.status.value,
-                "lastOutput": n.lastOutput,
-                "lastInputItems": [item.json_data for item in n.lastInputItems],
-                "lastOutputItems": [item.json_data for item in n.lastOutputItems]
-            })
-            
-        return {
-            "status": "success" if not flow_app.orchestrator.is_flow_stuck else "timeout", 
-            "logs": flow_app.orchestrator.execution_logs,
-            "results": results
-        }
+            flow_app.orchestrator.execution_logs.append("Execution timed out.")
     except Exception as e:
-        LogManager.error("API", f"Error executing flow: {str(e)}\n{traceback.format_exc()}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "logs": flow_app.orchestrator.execution_logs if flow_app and flow_app.orchestrator else [],
-            "results": []
-        }
+        import traceback
+        flow_app.orchestrator.execution_logs.append(f"Error: {str(e)}")
+        LogManager.error("Flow", f"Flow error: {str(e)}\n{traceback.format_exc()}")
+
+@app.get("/api/results")
+async def get_results():
+    global current_flow_app
+    
+    if not current_flow_app:
+        return {"status": "error", "error": "No flow running"}
+    
+    nodes = current_flow_app.get_nodes()
+    connections = current_flow_app.get_connections()
+    
+    sorted_nodes = []
+    start_nodes = [n for n in nodes if not any(c.toNodeId == n.id for c in connections)]
+    visited = set()
+    
+    def visit(node_id):
+        if node_id in visited:
+            return
+        visited.add(node_id)
+        node = next((n for n in nodes if n.id == node_id), None)
+        if node:
+            sorted_nodes.append(node)
+            children = [c.toNodeId for c in connections if c.fromNodeId == node_id]
+            for child_id in children:
+                visit(child_id)
+                
+    for start_node in start_nodes:
+        visit(start_node.id)
+        
+    for n in nodes:
+        if n.id not in visited:
+            sorted_nodes.append(n)
+            
+    results = [{
+        "id": n.id,
+        "title": n.title,
+        "status": n.status.value,
+        "lastOutput": n.lastOutput,
+        "lastInputItems": [item.json_data for item in n.lastInputItems],
+        "lastOutputItems": [item.json_data for item in n.lastOutputItems]
+    } for n in sorted_nodes]
+    
+    return {
+        "status": "success" if not current_flow_app.orchestrator.is_flow_stuck else "timeout",
+        "running": current_flow_app.orchestrator.is_flow_running,
+        "logs": current_flow_app.orchestrator.execution_logs,
+        "results": results
+    }
 
 if __name__ == "__main__":
     uvicorn.run("src.server:app", host="0.0.0.0", port=8000, reload=True)
