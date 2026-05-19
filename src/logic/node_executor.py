@@ -306,6 +306,7 @@ class NodeExecutor:
                         client = OpenAI(
                             base_url="https://openrouter.ai/api/v1",
                             api_key=openrouter_api_key,
+                            timeout=60.0,
                         )
                         messages = []
                         if system_instruction:
@@ -408,7 +409,7 @@ class NodeExecutor:
                     try:
                         self._log_info(f"Routing to OpenAI with model: {model_id}")
                         from openai import OpenAI
-                        client = OpenAI(api_key=openai_api_key)
+                        client = OpenAI(api_key=openai_api_key, timeout=60.0)
                         messages = []
                         if system_instruction:
                             messages.append({"role": "system", "content": system_instruction})
