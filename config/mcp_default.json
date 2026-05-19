@@ -140,7 +140,7 @@
 			],
 			"env": {
 				"LLM_API_KEY":   "YOUR_OPENROUTER_KEY",
-				"LLM_MODEL":     "google/gemini-3.1-flash-lite",
+				"LLM_MODEL":     "qwen/qwen3.6-35b-a3b",
 				"LLM_BASE_URL":  "https://openrouter.ai/api/v1",
 				"MCP_TRANSPORT": "stdio",
 				"PYTHONPATH":    "f:\\MCP\\AI\\RALPH"
