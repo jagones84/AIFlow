@@ -700,12 +700,18 @@
                     const ytEl = document.getElementById('youtube-key');
                     const ghEl = document.getElementById('github-key');
                     
+                    const SECRET_MASK = "********";
+                    
                     function applySecretField(el, hasFlag, rawValue) {
                         if (!el) return;
                         if (!el.dataset.defaultPlaceholder) el.dataset.defaultPlaceholder = el.placeholder || '';
                         const hasKey = Boolean(hasFlag) || Boolean(rawValue);
                         el.dataset.hasKey = hasKey ? "1" : "0";
-                        el.value = rawValue || "";
+                        const current = el.value || "";
+                        const hasUserTyped = current && current !== SECRET_MASK;
+                        if (!hasUserTyped) {
+                            el.value = rawValue || (hasKey ? SECRET_MASK : "");
+                        }
                         if (hasKey && !rawValue) {
                             el.placeholder = "Saved (hidden)";
                         } else {
@@ -735,6 +741,7 @@
         }
 
         async function saveEnv() {
+            const SECRET_MASK = "********";
             const openai = document.getElementById('openai-key').value;
             const anthropic = document.getElementById('anthropic-key').value;
             const openrouter = document.getElementById('openrouter-key').value;
@@ -750,7 +757,19 @@
             await fetch('/api/env', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({openai, anthropic, openrouter, gemini, groq, brave, tavily, huggingface, mapbox, youtube, github})
+                body: JSON.stringify({
+                    openai: openai === SECRET_MASK ? "" : openai,
+                    anthropic: anthropic === SECRET_MASK ? "" : anthropic,
+                    openrouter: openrouter === SECRET_MASK ? "" : openrouter,
+                    gemini: gemini === SECRET_MASK ? "" : gemini,
+                    groq: groq === SECRET_MASK ? "" : groq,
+                    brave: brave === SECRET_MASK ? "" : brave,
+                    tavily: tavily === SECRET_MASK ? "" : tavily,
+                    huggingface: huggingface === SECRET_MASK ? "" : huggingface,
+                    mapbox: mapbox === SECRET_MASK ? "" : mapbox,
+                    youtube: youtube === SECRET_MASK ? "" : youtube,
+                    github: github === SECRET_MASK ? "" : github
+                })
             });
             document.getElementById('settings-modal').style.display = 'none';
             alert('Settings saved to backend .env');
