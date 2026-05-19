@@ -386,8 +386,15 @@ class NodeExecutor:
                             message = response.choices[0].message
 
                         output = message.content or ""
-                        if not output and loop_count >= MAX_LOOPS:
-                            output = "Error: AI reached maximum tool loop limit without returning a final answer."
+                        if not output:
+                            tool_results_summary = "\n".join([
+                                f"[{m.get('name', 'unknown')}] {m.get('content', '')[:200]}"
+                                for m in messages if m.get("role") == "tool"
+                            ])
+                            if tool_results_summary:
+                                output = f"Tool results:\n{tool_results_summary}"
+                            elif loop_count >= MAX_LOOPS:
+                                output = "Error: AI reached maximum tool loop limit without returning a final answer."
                             
                     except Exception as e:
                         import traceback

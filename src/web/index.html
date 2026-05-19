@@ -1160,11 +1160,12 @@
                     body: JSON.stringify(projectData)
                 });
                 
+                const text = await res.text();
                 let result;
+                
                 try {
-                    result = await res.json();
+                    result = JSON.parse(text);
                 } catch (jsonError) {
-                    const text = await res.text();
                     throw new Error(`Server returned non-JSON response: ${text.substring(0, 500)}`);
                 }
                 
