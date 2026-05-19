@@ -1159,7 +1159,18 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(projectData)
                 });
-                const result = await res.json();
+                
+                let result;
+                try {
+                    result = await res.json();
+                } catch (jsonError) {
+                    const text = await res.text();
+                    throw new Error(`Server returned non-JSON response: ${text.substring(0, 500)}`);
+                }
+                
+                if (result.status === 'error') {
+                    throw new Error(result.error || 'Unknown error during flow execution');
+                }
                 
                 // Sort results topologically for display
                 const nodeMap = {};
