@@ -862,7 +862,7 @@
             try {
                 const resEnv = await fetch('/api/env');
                 const envData = await resEnv.json();
-                if (envData.openrouter) hasKey = true;
+                if (envData.has_openrouter || envData.openrouter) hasKey = true;
             } catch(e) {}
 
             if (!hasKey) {

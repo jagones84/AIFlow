@@ -98,17 +98,28 @@ class EnvData(BaseModel):
 @app.get("/api/env")
 async def get_env():
     return {
-        "openai": os.getenv("OPENAI_API_KEY", ""),
-        "anthropic": os.getenv("ANTHROPIC_API_KEY", ""),
-        "openrouter": os.getenv("OPENROUTER_API_KEY", ""),
-        "gemini": os.getenv("GEMINI_API_KEY", ""),
-        "groq": os.getenv("GROQ_API_KEY", ""),
-        "brave": os.getenv("BRAVE_API_KEY", ""),
-        "tavily": os.getenv("TAVILY_API_KEY", ""),
-        "huggingface": os.getenv("HF_TOKEN", ""),
-        "mapbox": os.getenv("MAPBOX_API_KEY", ""),
-        "youtube": os.getenv("YOUTUBE_API_KEY", ""),
-        "github": os.getenv("GITHUB_TOKEN", "")
+        "openai": "",
+        "anthropic": "",
+        "openrouter": "",
+        "gemini": "",
+        "groq": "",
+        "brave": "",
+        "tavily": "",
+        "huggingface": "",
+        "mapbox": "",
+        "youtube": "",
+        "github": "",
+        "has_openai": bool(os.getenv("OPENAI_API_KEY", "")),
+        "has_anthropic": bool(os.getenv("ANTHROPIC_API_KEY", "")),
+        "has_openrouter": bool(os.getenv("OPENROUTER_API_KEY", "")),
+        "has_gemini": bool(os.getenv("GEMINI_API_KEY", "")),
+        "has_groq": bool(os.getenv("GROQ_API_KEY", "")),
+        "has_brave": bool(os.getenv("BRAVE_API_KEY", "")),
+        "has_tavily": bool(os.getenv("TAVILY_API_KEY", "")),
+        "has_huggingface": bool(os.getenv("HF_TOKEN", "")),
+        "has_mapbox": bool(os.getenv("MAPBOX_API_KEY", "")),
+        "has_youtube": bool(os.getenv("YOUTUBE_API_KEY", "")),
+        "has_github": bool(os.getenv("GITHUB_TOKEN", "")),
     }
 
 @app.post("/api/env")
@@ -153,7 +164,10 @@ async def set_env(data: EnvData):
         line_key = line.split("=")[0].strip() if "=" in line else ""
         if line_key in found:
             val = getattr(data, key_to_field[line_key], "")
-            new_lines.append(f"{line_key}={val}\n")
+            if val:
+                new_lines.append(f"{line_key}={val}\n")
+            else:
+                new_lines.append(line)
             found[line_key] = True
         else:
             new_lines.append(line)
@@ -161,14 +175,17 @@ async def set_env(data: EnvData):
     for k, is_found in found.items():
         if not is_found:
             val = getattr(data, key_to_field[k], "")
-            new_lines.append(f"{k}={val}\n")
+            if val:
+                new_lines.append(f"{k}={val}\n")
         
     with open(env_path, "w") as f:
         f.writelines(new_lines)
         
     # Update current runtime env
     for k, field in key_to_field.items():
-        os.environ[k] = getattr(data, field, "")
+        val = getattr(data, field, "")
+        if val:
+            os.environ[k] = val
     
     return {"status": "success"}
 
