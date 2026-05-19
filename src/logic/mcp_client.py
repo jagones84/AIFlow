@@ -38,7 +38,11 @@ class NativeMcpClient:
             
         custom_env = config.get("env", {})
         for k, v in custom_env.items():
-            env[k] = str(v)
+            sv = "" if v is None else str(v)
+            is_placeholder = (not sv) or sv.startswith("YOUR_") or sv.startswith("your_") or sv.startswith("INSERISCI")
+            if is_placeholder and env.get(k):
+                continue
+            env[k] = sv
             
         cwd = config.get("cwd") or config.get("workingDirectory")
 
