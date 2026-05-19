@@ -7,7 +7,7 @@ def test_llm():
     url = "http://localhost:48321/api/architect"
     payload = {
         "prompt": "Create a simple workflow. Start with TRIGGER. Then add a USER_INPUT node and set its userInstruction field to 'Ciao mondo come stai?'. Then add an AI_AGENT node.",
-        "model": "x-ai/grok-4.1-fast" 
+        "model": "google/gemini-3.1-flash-lite" 
     }
     
     # Try to hit the API

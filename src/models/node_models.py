@@ -150,7 +150,7 @@ class NodeData(BaseModel):
     outputs: List[Pin] = Field(default_factory=list)
     
     # Configuration
-    modelId: str = "x-ai/grok-4.1-fast"
+    modelId: str = "google/gemini-3.1-flash-lite"
     systemPrompt: str = "You are a helpful assistant."
     allowedTools: List[str] = Field(default_factory=list)
     
