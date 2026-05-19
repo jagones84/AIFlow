@@ -127,13 +127,22 @@ class NativeMcpClient:
         
         if "result" in res and "content" in res["result"]:
             content = res["result"]["content"]
-            if isinstance(content, list) and len(content) > 0:
-                return str(content[0].get("text", content))
-            return str(content)
+            return self._parse_mcp_content(content)
         elif "error" in res:
             return f"MCP Tool Error: {res['error']}"
         else:
-            return json.dumps(res)
+            return f"MCP Tool Error: {json.dumps(res)}"
+
+    @staticmethod
+    def _parse_mcp_content(content) -> str:
+        if isinstance(content, list) and len(content) > 0:
+            item = content[0]
+            if isinstance(item, dict):
+                text = item.get("text")
+                if text is not None:
+                    return str(text)
+            return json.dumps(content)
+        return str(content)
 
     def _get_next_id(self):
         current = self._message_id
