@@ -225,9 +225,9 @@
             <button class="run-btn" style="background:#3498db; margin-right:5px;" onclick="loadWorkflow()">📂 Load</button>
             <button class="run-btn" style="background:#7f8c8d; margin-right:5px;" onclick="openSettings()">⚙️</button>
             <span style="margin: 0 8px; color: #999;">|</span>
-            <button class="run-btn" style="background:#95a5a6; margin-right:5px; padding: 8px 10px;" onclick="editor.zoomIn()" title="Zoom In">🔍+</button>
-            <button class="run-btn" style="background:#95a5a6; margin-right:5px; padding: 8px 10px;" onclick="editor.zoomOut()" title="Zoom Out">🔍-</button>
-            <button class="run-btn" style="background:#95a5a6; margin-right:5px; padding: 8px 10px;" onclick="editor.posZoomToZero(); editor.changeZoom(0);" title="Reset View">🎯</button>
+            <button class="run-btn" style="background:#95a5a6; margin-right:5px; padding: 8px 10px;" onclick="zoomIn()" title="Zoom In">🔍+</button>
+            <button class="run-btn" style="background:#95a5a6; margin-right:5px; padding: 8px 10px;" onclick="zoomOut()" title="Zoom Out">🔍-</button>
+            <button class="run-btn" style="background:#95a5a6; margin-right:5px; padding: 8px 10px;" onclick="fitToWindow()" title="Fit to Window">🎯</button>
             <span style="margin: 0 8px; color: #999;">|</span>
             <button class="run-btn" id="run-btn" onclick="exportAndRun()">▶ Execute</button>
             <button class="run-btn" id="stop-btn" style="background:#e74c3c; display:none; margin-left:5px;" onclick="stopWorkflow()">🛑 Stop</button>
@@ -478,6 +478,50 @@
             }
         }
 
+        function zoomIn() { editor.zoomIn(); }
+        function zoomOut() { editor.zoomOut(); }
+        function fitToWindow() {
+            const drawflow = document.querySelector('#drawflow');
+            const canvas = drawflow.querySelector('.drawflow') || drawflow;
+            if (!canvas || !canvas.children.length) return;
+            
+            // Find bounding box of all nodes
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            const nodes = canvas.querySelectorAll('.node');
+            if (!nodes.length) return;
+            
+            nodes.forEach(node => {
+                const rect = node.getBoundingClientRect();
+                minX = Math.min(minX, rect.left);
+                minY = Math.min(minY, rect.top);
+                maxX = Math.max(maxX, rect.right);
+                maxY = Math.max(maxY, rect.bottom);
+            });
+            
+            const containerWidth = drawflow.clientWidth - 40;
+            const containerHeight = drawflow.clientHeight - 40;
+            const contentWidth = maxX - minX;
+            const contentHeight = maxY - minY;
+            
+            const scaleX = containerWidth / contentWidth;
+            const scaleY = containerHeight / contentHeight;
+            const scale = Math.min(scaleX, scaleY, 1) * 0.9;
+            
+            const zoom = Math.max(-0.5, Math.min(scale - 1, 0.5));
+            editor.changeZoom(zoom);
+            
+            // Center view
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            const containerRect = drawflow.getBoundingClientRect();
+            const offsetX = containerRect.width / 2 - centerX;
+            const offsetY = containerRect.height / 2 - centerY;
+            canvas.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${1 + zoom})`;
+        }
+        function resetView() {
+            editor.changeZoom(0);
+            editor.posZoomToZero();
+        }
         var id = document.getElementById("drawflow");
         const editor = new Drawflow(id);
         editor.reroute = true;

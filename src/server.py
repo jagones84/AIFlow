@@ -409,7 +409,7 @@ async def run_architect_background(prompt: str, model: str):
         
         node_descriptions = """
 • TRIGGER: Starts workflow. `triggerType` (MANUAL, SCHEDULE, WEBHOOK).
-• PROMPT_INPUT: Injects a text prompt into the flow (for user queries, not for waiting). `promptText` (the actual prompt content).
+• PROMPT_INPUT: The entry point for the user's request. `promptText`: You MUST set this to the EXACT user request or question that starts the workflow.
 • AI_AGENT: Uses LLM. `modelId` (qwen/qwen3.6-35b-a3b), `systemPrompt`, `allowedTools` (List of tool names).
 • TOOL_EXECUTION: Runs a tool. `selectedToolName`.
 • ROUTER: Splits flow. `routerMode` (AI_LLM, SIMPLE_RULE), `ruleCondition`.
@@ -424,9 +424,14 @@ async def run_architect_background(prompt: str, model: str):
 
 CRITICAL RULES:
 1. NEVER connect TRIGGER directly to AI_AGENT - use PROMPT_INPUT in between.
-2. PROMPT_INPUT: use `promptText` for the actual text content you want to pass through the flow. Do NOT use USER_INPUT - it does not exist.
+2. PROMPT_INPUT: The `promptText` field MUST contain the EXACT user request or query. For example, if user asks "search for latest soccer match", the promptText should be exactly "search for latest soccer match".
 3. AI_AGENT needs `modelId` ("qwen/qwen3.6-35b-a3b"), `systemPrompt`, and `allowedTools`.
 4. Always end with OUTPUT_DISPLAY. Call FinishDesign when done.
+
+IMPORTANT - PROMPT_INPUT FIELD:
+When you create a PROMPT_INPUT node, you MUST set:
+  config={{"promptText": "THE EXACT USER REQUEST"}}
+The promptText should be the actual question/query the user wants answered, not a placeholder like "Enter research topic".
 
 You have access to tools to AddNode, UpdateNode, ConnectNodes, RemoveNode, RemoveConnection, and GetCurrentGraph.
 If the user asks to modify the workflow, ALWAYS call GetCurrentGraph first to see the current state before making changes, unless you already know it.
