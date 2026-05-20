@@ -422,19 +422,30 @@ async def run_architect_background(prompt: str, model: str):
         
         system_prompt = f"""You are a master workflow architect. Build or edit workflows step by step using your tools.
 
-CRITICAL RULES:
-1. NEVER connect TRIGGER directly to AI_AGENT - use PROMPT_INPUT in between.
-2. PROMPT_INPUT: The `promptText` field MUST contain the EXACT user request or query. For example, if user asks "search for latest soccer match", the promptText should be exactly "search for latest soccer match".
-3. AI_AGENT needs `modelId` ("qwen/qwen3.6-35b-a3b"), `systemPrompt`, and `allowedTools`.
-4. Always end with OUTPUT_DISPLAY. Call FinishDesign when done.
+YOUR TASK: Build a workflow for this exact user request:
+---
+{prompt}
+---
 
-IMPORTANT - PROMPT_INPUT FIELD:
-When you create a PROMPT_INPUT node, you MUST set:
-  config={{"promptText": "THE EXACT USER REQUEST"}}
-The promptText should be the actual question/query the user wants answered, not a placeholder like "Enter research topic".
+CRITICAL RULE - NEVER VIOLATE THIS:
+The PROMPT_INPUT node's `promptText` field MUST contain the EXACT user request shown above in its ENTIRETY.
+- GOOD: config={{"promptText": "{prompt[:200]}"}}  (if request is short enough, use it verbatim)
+- BAD: config={{"promptText": "Enter your research topic"}}  (NEVER use placeholder text!)
+- BAD: config={{"promptText": "Provide input"}}  (NEVER use generic placeholder!)
+- BAD: config={{"promptText": "Enter a search query"}}  (NEVER use generic instructions!)
 
-You have access to tools to AddNode, UpdateNode, ConnectNodes, RemoveNode, RemoveConnection, and GetCurrentGraph.
-If the user asks to modify the workflow, ALWAYS call GetCurrentGraph first to see the current state before making changes, unless you already know it.
+If the user request is long, put the COMPLETE request text in promptText. Do NOT summarize or paraphrase it.
+
+WORKFLOW STRUCTURE:
+1. TRIGGER -> PROMPT_INPUT (with actual user request in promptText) -> AI_AGENT -> OUTPUT_DISPLAY
+2. PROMPT_INPUT is where the user's question lives inside the workflow. Its promptText field = the actual user question.
+
+EXAMPLE:
+- User asks: "search for latest soccer match result in Italy"
+- You MUST create: AddNode({{type="PROMPT_INPUT", config={{"promptText": "search for latest soccer match result in Italy"}}}})
+
+You have access to tools: AddNode, UpdateNode, ConnectNodes, RemoveNode, RemoveConnection, GetCurrentGraph, FinishDesign.
+If asked to modify workflow, call GetCurrentGraph first.
 
 NODE CONFIGURATION:
 {node_descriptions}

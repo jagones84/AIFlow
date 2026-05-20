@@ -395,12 +395,10 @@
             <span>🪄 Architect</span>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span id="architect-running-indicator" style="display: none; color: #f1c40f; animation: blink 1s infinite;">⚙️</span>
-                <select id="architect-model-select" style="font-size: 11px; padding: 2px; border-radius: 3px; border: none; background: rgba(255,255,255,0.2); color: white; cursor: pointer;">
-                    <option value="qwen/qwen3.6-35b-a3b">Qwen 3.6B</option>
-                    <option value="anthropic/claude-3.5-haiku">Claude Haiku</option>
-                    <option value="google/gemini-2.0-flash-thinking-exp">Gemini Flash</option>
-                    <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
-                </select>
+            <div style="display: flex; gap: 5px; align-items: center;">
+                <input type="text" id="architect-model-select" value="qwen/qwen3.6-35b-a3b" style="font-size: 11px; padding: 2px 5px; border-radius: 3px; border: none; background: rgba(255,255,255,0.2); color: white; width: 140px;" placeholder="Model ID" title="Enter OpenRouter model ID" />
+                <a href="https://openrouter.ai/models" target="_blank" title="Browse OpenRouter Models" style="color: white; text-decoration: none; font-size: 14px;">ℹ️</a>
+            </div>
                 <span style="cursor:pointer;" onclick="clearArchitectMemory()" title="Clear Memory">🗑️</span>
                 <span style="cursor:pointer;" onclick="minimizeArchitectChat()" title="Minimize">➖</span>
                 <span style="cursor:pointer;" onclick="document.getElementById('architect-chat-panel').style.display='none'; document.getElementById('architect-chat-fab').style.display='flex';">✖</span>
