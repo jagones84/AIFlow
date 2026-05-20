@@ -370,7 +370,7 @@
         </div>
     </div>
 
-    <!-- Chat Overlay for USER_INPUT nodes -->
+    <!-- Chat Overlay for PROMPT_INPUT nodes -->
     <div id="chat-overlay">
         <div id="chat-overlay-header">Agent requires your input</div>
         <div id="chat-overlay-message"></div>
@@ -383,16 +383,14 @@
 
     <!-- Architect Chat Panel -->
     <div id="architect-chat-panel" style="display: none; position: fixed; top: 70px; right: 20px; width: 350px; height: 500px; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000; flex-direction: column;">
-        <div style="background: #8e44ad; color: white; padding: 10px; border-radius: 8px 8px 0 0; font-weight: bold; display: flex; justify-content: space-between;">
+        <div id="architect-chat-header" style="background: #8e44ad; color: white; padding: 10px; border-radius: 8px 8px 0 0; font-weight: bold; display: flex; justify-content: space-between; cursor: move;">
             <span>🪄 Architect Chat</span>
             <div>
                 <span style="cursor:pointer; margin-right: 10px;" onclick="clearArchitectMemory()" title="Clear Memory">🗑️</span>
                 <span style="cursor:pointer;" onclick="document.getElementById('architect-chat-panel').style.display='none'">✖</span>
             </div>
         </div>
-        <div id="architect-chat-messages" style="padding: 15px; flex: 1; overflow-y: auto; font-size: 14px; background: #f9f9f9; display: flex; flex-direction: column; gap: 10px;">
-            <div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start;">Hi! I'm the Architect. Describe the workflow you want to build or edit.</div>
-        </div>
+        <div id="architect-chat-messages" style="padding: 15px; flex: 1; overflow-y: auto; font-size: 14px; background: #f9f9f9; display: flex; flex-direction: column; gap: 10px;"></div>
         <div style="padding: 10px; border-top: 1px solid #eee; display: flex; flex-direction: column; gap: 5px;">
             <div id="architect-status" style="font-size: 12px; color: #7f8c8d; text-align: center; display: none;">Thinking...</div>
             <div style="display: flex; gap: 5px;">
@@ -403,6 +401,42 @@
     </div>
 
     <script>
+        // Make Architect chat panel draggable
+        dragElement(document.getElementById("architect-chat-panel"), document.getElementById("architect-chat-header"));
+
+        function dragElement(elmnt, dragHandle) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            if (dragHandle) {
+                dragHandle.onmousedown = dragMouseDown;
+            } else {
+                elmnt.onmousedown = dragMouseDown;
+            }
+
+            function dragMouseDown(e) {
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+
+            function elementDrag(e) {
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+                elmnt.style.right = "auto";
+                elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+
         var id = document.getElementById("drawflow");
         const editor = new Drawflow(id);
         editor.reroute = true;
@@ -414,7 +448,7 @@
             { id: 'TOOL_EXECUTION', label: '🔧 Tool', color: '#34495e', inputs: 1, outputs: 1 },
             { id: 'ROUTER', label: '🔀 Router', color: '#e67e22', inputs: 1, outputs: 2 },
             { id: 'SWITCH', label: '🛣️ Switch', color: '#d35400', inputs: 1, outputs: 3 }, // Variable outputs in reality
-            { id: 'USER_INPUT', label: '👤 User Input', color: '#1abc9c', inputs: 1, outputs: 1 },
+            { id: 'PROMPT_INPUT', label: '💬 Prompt', color: '#1abc9c', inputs: 1, outputs: 1 },
             { id: 'KNOWLEDGE', label: '📚 Knowledge', color: '#16a085', inputs: 1, outputs: 1 },
             { id: 'JSON_PARSER', label: '🧬 JSON Parser', color: '#2ecc71', inputs: 1, outputs: 1 },
             { id: 'JSON_FIELD_EXTRACT', label: '🎯 JSON Extract', color: '#27ae60', inputs: 1, outputs: 1 },
@@ -516,9 +550,8 @@
                 { id: 'routerMode', label: 'Mode', type: 'select', options: ['SIMPLE_RULE', 'AI_LLM'], default: 'SIMPLE_RULE' },
                 // Simplified routes for GUI (would need dynamic list in a real app)
             ],
-            'USER_INPUT': [
-                { id: 'userInstruction', label: 'Instruction', type: 'text', default: 'latest soccer italian match with result, search for it' },
-                { id: 'isInteractive', label: 'Wait for User', type: 'checkbox', default: false }
+            'PROMPT_INPUT': [
+                { id: 'promptText', label: 'Prompt Text', type: 'textarea', default: 'latest soccer italian match with result, search for it' }
             ],
             'JSON_PARSER': [
                 { id: 'jsonSchema', label: 'Target Schema', type: 'textarea', default: '{"key": "string"}' }
@@ -945,15 +978,29 @@
         async function clearArchitectMemory() {
             try {
                 await fetch('/api/architect/chat', { method: 'DELETE' });
-                document.getElementById('architect-chat-messages').innerHTML = '<div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start;">Memory cleared. How can I help?</div>';
+                const messagesDiv = document.getElementById('architect-chat-messages');
+                messagesDiv.innerHTML = ARCHITECT_INITIAL_MESSAGE;
+                document.getElementById('architect-chat-input').value = ARCHITECT_WELCOME;
             } catch(e) {
                 console.error("Failed to clear memory", e);
             }
         }
 
+        const ARCHITECT_WELCOME = "Design a comprehensive test workflow that uses the most advanced nodes available. Create an AI_AGENT with access to tools, include a feedback loop with the user (PROMPT_INPUT), and use various logic nodes (like ROUTER, LOOP, MERGE) to thoroughly test the engine's capabilities.";
+
+        const ARCHITECT_INITIAL_MESSAGE = `<div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start;">Hi! I'm the Architect. Type your request below, or I'll start building a comprehensive test workflow for you.</div><div style="background: #f4ecf7; padding: 8px; border-radius: 4px; align-self: flex-start; margin-top: 5px; font-size: 13px; color: #555;">Example: ${ARCHITECT_WELCOME}</div>`;
+
         function runArchitect() {
             const panel = document.getElementById('architect-chat-panel');
-            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+            const messagesDiv = document.getElementById('architect-chat-messages');
+            if (panel.style.display === 'none' || !panel.style.display) {
+                panel.style.display = 'flex';
+                // Set welcome message and auto-fill the default prompt
+                messagesDiv.innerHTML = ARCHITECT_INITIAL_MESSAGE;
+                document.getElementById('architect-chat-input').value = ARCHITECT_WELCOME;
+            } else {
+                panel.style.display = 'none';
+            }
         }
 
         let architectPollInterval = null;
@@ -1180,7 +1227,7 @@
                             }
                         }
 
-                        // Check for waiting nodes (USER_INPUT pause)
+                        // Check for waiting nodes (PROMPT_INPUT pause)
                         if (data.waiting_nodes && data.waiting_nodes.length > 0) {
                             const waitId = data.waiting_nodes[0];
                             const overlay = document.getElementById('chat-overlay');

@@ -394,7 +394,7 @@ async def run_architect_background(prompt: str, model: str):
         client = OpenAI(base_url=base_url, api_key=api_key, timeout=45.0)
         
         tools = [
-            {"type": "function", "function": {"name": "AddNode", "description": "Adds a new node to the workflow.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}, "type": {"type": "string", "enum": ["TRIGGER", "AI_AGENT", "TOOL_EXECUTION", "ROUTER", "SWITCH", "USER_INPUT", "KNOWLEDGE", "JSON_PARSER", "JSON_FIELD_EXTRACT", "MERGE", "LOOP_OVER_ITEMS", "VARIABLE_STORE", "FILE_SAVE", "STOP_AND_ERROR", "HTTP_REQUEST", "WAIT", "CODE", "SET", "FILTER", "SORT", "LIMIT", "AGGREGATE", "REMOVE_DUPLICATES", "SPLIT_OUT", "SUMMARIZE", "OUTPUT_DISPLAY"]}, "title": {"type": "string"}, "x": {"type": "integer"}, "y": {"type": "integer"}, "config": {"type": "object", "properties": {"userInstruction": {"type": "string"}, "isInteractive": {"type": "boolean"}, "modelId": {"type": "string"}, "systemPrompt": {"type": "string"}, "allowedTools": {"type": "array", "items": {"type": "string"}}, "selectedToolName": {"type": "string"}, "httpUrl": {"type": "string"}, "httpMethod": {"type": "string"}, "ruleCondition": {"type": "string"}, "routerMode": {"type": "string"}, "sortFieldName": {"type": "string"}, "sortOrder": {"type": "string"}, "limitCount": {"type": "integer"}, "mergeMode": {"type": "string"}, "fileName": {"type": "string"}, "waitForAllInputs": {"type": "boolean"}}, "additionalProperties": True}, "required": ["type"]}}}},
+            {"type": "function", "function": {"name": "AddNode", "description": "Adds a new node to the workflow.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}, "type": {"type": "string", "enum": ["TRIGGER", "AI_AGENT", "TOOL_EXECUTION", "ROUTER", "SWITCH", "PROMPT_INPUT", "KNOWLEDGE", "JSON_PARSER", "JSON_FIELD_EXTRACT", "MERGE", "LOOP_OVER_ITEMS", "VARIABLE_STORE", "FILE_SAVE", "STOP_AND_ERROR", "HTTP_REQUEST", "WAIT", "CODE", "SET", "FILTER", "SORT", "LIMIT", "AGGREGATE", "REMOVE_DUPLICATES", "SPLIT_OUT", "SUMMARIZE", "OUTPUT_DISPLAY"]}, "title": {"type": "string"}, "x": {"type": "integer"}, "y": {"type": "integer"}, "config": {"type": "object", "properties": {"promptText": {"type": "string"}, "modelId": {"type": "string"}, "systemPrompt": {"type": "string"}, "allowedTools": {"type": "array", "items": {"type": "string"}}, "selectedToolName": {"type": "string"}, "httpUrl": {"type": "string"}, "httpMethod": {"type": "string"}, "ruleCondition": {"type": "string"}, "routerMode": {"type": "string"}, "sortFieldName": {"type": "string"}, "sortOrder": {"type": "string"}, "limitCount": {"type": "integer"}, "mergeMode": {"type": "string"}, "fileName": {"type": "string"}, "waitForAllInputs": {"type": "boolean"}}, "additionalProperties": True}, "required": ["type"]}}}},
             {"type": "function", "function": {"name": "ConnectNodes", "description": "Connects two nodes together.", "parameters": {"type": "object", "properties": {"fromNode": {"type": "string"}, "toNode": {"type": "string"}}, "required": ["fromNode", "toNode"]}}},
             {"type": "function", "function": {"name": "RemoveNode", "description": "Removes a node by its ID.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}}},
             {"type": "function", "function": {"name": "RemoveConnection", "description": "Removes a connection between two nodes.", "parameters": {"type": "object", "properties": {"fromNode": {"type": "string"}, "toNode": {"type": "string"}}, "required": ["fromNode", "toNode"]}}},
@@ -409,7 +409,7 @@ async def run_architect_background(prompt: str, model: str):
         
         node_descriptions = """
 • TRIGGER: Starts workflow. `triggerType` (MANUAL, SCHEDULE, WEBHOOK).
-• USER_INPUT: Prompts user or injects text. `userInstruction` (the prompt text), `isInteractive` (boolean).
+• PROMPT_INPUT: Injects a text prompt into the flow (for user queries, not for waiting). `promptText` (the actual prompt content).
 • AI_AGENT: Uses LLM. `modelId` (qwen/qwen3.6-35b-a3b), `systemPrompt`, `allowedTools` (List of tool names).
 • TOOL_EXECUTION: Runs a tool. `selectedToolName`.
 • ROUTER: Splits flow. `routerMode` (AI_LLM, SIMPLE_RULE), `ruleCondition`.
@@ -423,12 +423,12 @@ async def run_architect_background(prompt: str, model: str):
         system_prompt = f"""You are a master workflow architect. Build or edit workflows step by step using your tools.
 
 CRITICAL RULES:
-1. NEVER connect TRIGGER directly to AI_AGENT - use USER_INPUT in between.
-2. USER_INPUT: use `userInstruction` for text, `isInteractive` (true only for human pauses).
+1. NEVER connect TRIGGER directly to AI_AGENT - use PROMPT_INPUT in between.
+2. PROMPT_INPUT: use `promptText` for the actual text content you want to pass through the flow. Do NOT use USER_INPUT - it does not exist.
 3. AI_AGENT needs `modelId` ("qwen/qwen3.6-35b-a3b"), `systemPrompt`, and `allowedTools`.
 4. Always end with OUTPUT_DISPLAY. Call FinishDesign when done.
 
-You have access to tools to AddNode, UpdateNode, ConnectNodes, and GetCurrentGraph.
+You have access to tools to AddNode, UpdateNode, ConnectNodes, RemoveNode, RemoveConnection, and GetCurrentGraph.
 If the user asks to modify the workflow, ALWAYS call GetCurrentGraph first to see the current state before making changes, unless you already know it.
 
 NODE CONFIGURATION:
