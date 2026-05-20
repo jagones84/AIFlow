@@ -971,7 +971,18 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({prompt: promptStr, model: modelStr})
                 });
-                const data = await res.json();
+                const text = await res.text();
+                if (!text || text.trim() === "") {
+                    alert("Error: Empty response from server. Check server logs.");
+                    return;
+                }
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch(parseErr) {
+                    alert("Error: Invalid JSON response: " + text.substring(0, 200));
+                    return;
+                }
                 if(data.status === 'success' && data.drawflow) {
                     editor.import(data.drawflow);
                     alert("Workflow generated successfully!");
@@ -979,7 +990,7 @@
                     alert("Failed to generate workflow: " + (data.message || "Unknown error"));
                 }
             } catch(e) {
-                alert("Error connecting to Architect: " + e);
+                alert("Error connecting to Architect: " + e.message || String(e));
             } finally {
                 clearInterval(pollInterval);
                 if (window.globalLogPoller) {
