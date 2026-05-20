@@ -2,8 +2,8 @@
 
 ## Summary
 Total Tests: 27
-Passed: 16
-Failed: 11
+Passed: 20
+Failed: 7
 
 ## Details
 ### ✅ PASS: Node - SET
@@ -21,8 +21,8 @@ Failed: 11
 ### ✅ PASS: Node - HTTP_REQUEST
 **Details:** HTTP GET request succeeded.
 
-### ❌ FAIL: Node - JSON_PARSER
-**Details:** 'parsed'
+### ✅ PASS: Node - JSON_PARSER
+**Details:** Successfully parsed JSON text.
 
 ### ✅ PASS: Node - JSON_FIELD_EXTRACT
 **Details:** Extracted nested JSON field.
@@ -30,21 +30,17 @@ Failed: 11
 ### ✅ PASS: Node - WAIT
 **Details:** Successfully waited specified time.
 
-### ❌ FAIL: Node - VARIABLE_STORE
-**Details:** type object 'VariableManager' has no attribute 'clear'
+### ✅ PASS: Node - VARIABLE_STORE
+**Details:** Write and Read operations successful.
 
 ### ✅ PASS: Node - STOP_AND_ERROR
 **Details:** Successfully stopped flow and raised error.
 
-### ❌ FAIL: Node - FILTER
-**Details:** assert 0 == 1
- +  where 0 = len([])
- +    where [] = ExecutionResult(output='Filtered 0 out of 2 item(s).', success=True, outputItems=[], shouldTriggerNext=True, shouldStopFlow=False, iteratorBatches=None, loopBatches=None, doneItems=None, updatedNode=None, subWorkflowId=None, subWorkflowInput=None).outputItems
+### ✅ PASS: Node - FILTER
+**Details:** Successfully filtered items.
 
-### ❌ FAIL: Node - LIMIT
-**Details:** assert 3 == 2
- +  where 3 = len([FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={})])
- +    where [FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={})] = ExecutionResult(output='Limited to 10 items (offset 0). Result: 3 items.', success=True, outputItems=[FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={})], shouldTriggerNext=True, shouldStopFlow=False, iteratorBatches=None, loopBatches=None, doneItems=None, updatedNode=None, subWorkflowId=None, subWorkflowInput=None).outputItems
+### ✅ PASS: Node - LIMIT
+**Details:** Successfully limited items.
 
 ### ✅ PASS: Node - FILE_SAVE
 **Details:** Successfully saved to file.

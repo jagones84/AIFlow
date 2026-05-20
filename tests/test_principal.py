@@ -126,7 +126,7 @@ def test_http_request_node():
 def test_json_parser_node():
     node = NodeData(title="JSON Parser", type=NodeType.JSON_PARSER)
     try:
-        res = execute_node(node, [FlowItem(text='{"parsed": "success"}')])
+        res = execute_node(node, [FlowItem(json_data={"text": '{"parsed": "success"}'})])
         assert res.success
         assert res.outputItems[0].json_data["parsed"] == "success"
         add_result("Node", "JSON_PARSER", True, "Successfully parsed JSON text.")
@@ -138,6 +138,7 @@ def test_json_field_extract_node():
     try:
         res = execute_node(node, [FlowItem(json_data={"nested": {"field": "value"}})])
         assert res.success
+        assert res.outputItems[0].json_data.get("extracted") == "value"
         add_result("Node", "JSON_FIELD_EXTRACT", True, "Extracted nested JSON field.")
     except Exception as e:
         add_result("Node", "JSON_FIELD_EXTRACT", False, str(e))
@@ -161,14 +162,14 @@ def test_variable_store_node():
         variableKey="test_var", variableOperation=VariableOperation.READ
     )
     try:
-        VariableManager.clear()
+        VariableManager._variables.clear()
         # Write
-        res_w = execute_node(node_write, [FlowItem(text="stored_value")])
+        res_w = execute_node(node_write, [FlowItem(json_data={"text": "stored_value"})])
         assert res_w.success
         # Read
-        res_r = execute_node(node_read, [FlowItem(text="dummy")])
+        res_r = execute_node(node_read, [FlowItem(json_data={"text": "dummy"})])
         assert res_r.success
-        assert res_r.outputItems[0].text == "stored_value"
+        assert res_r.outputItems[0].json_data["text"] == "stored_value"
         add_result("Node", "VARIABLE_STORE", True, "Write and Read operations successful.")
     except Exception as e:
         add_result("Node", "VARIABLE_STORE", False, str(e))
@@ -186,6 +187,7 @@ def test_stop_and_error_node():
 def test_filter_node():
     node = NodeData(title="Filter", type=NodeType.FILTER, ruleCondition="expr: {{ $json.val }} > 5")
     try:
+        # In test, we need to pass the node context to evaluator
         res = execute_node(node, [FlowItem(json_data={"val": 10}), FlowItem(json_data={"val": 2})])
         assert res.success
         assert len(res.outputItems) == 1
@@ -195,9 +197,10 @@ def test_filter_node():
         add_result("Node", "FILTER", False, str(e))
 
 def test_limit_node():
-    node = NodeData(title="Limit", type=NodeType.LIMIT, batchSize=2)
+    # Use limitCount instead of batchSize
+    node = NodeData(title="Limit", type=NodeType.LIMIT, limitCount=2, limitOffset=0)
     try:
-        res = execute_node(node, [FlowItem(text="1"), FlowItem(text="2"), FlowItem(text="3")])
+        res = execute_node(node, [FlowItem(json_data={"text": "1"}), FlowItem(json_data={"text": "2"}), FlowItem(json_data={"text": "3"})])
         assert res.success
         assert len(res.outputItems) == 2
         add_result("Node", "LIMIT", True, "Successfully limited items.")
@@ -207,7 +210,7 @@ def test_limit_node():
 def test_file_save_node():
     node = NodeData(title="Save File", type=NodeType.FILE_SAVE, fileName="test_save.txt")
     try:
-        res = execute_node(node, [FlowItem(text="Hello file save")])
+        res = execute_node(node, [FlowItem(json_data={"text": "Hello file save"})])
         assert res.success
         assert os.path.exists("outputs/test_save.txt")
         add_result("Node", "FILE_SAVE", True, "Successfully saved to file.")
@@ -217,7 +220,7 @@ def test_file_save_node():
 def test_loop_node():
     node = NodeData(title="Loop", type=NodeType.LOOP_OVER_ITEMS, batchSize=2)
     try:
-        res = execute_node(node, [FlowItem(text="1"), FlowItem(text="2"), FlowItem(text="3")])
+        res = execute_node(node, [FlowItem(json_data={"text": "1"}), FlowItem(json_data={"text": "2"}), FlowItem(json_data={"text": "3"})])
         assert res.success
         # Loop node prepares batches, outputItems is just items but it creates iteratorBatches
         assert len(res.outputItems) == 3
@@ -235,8 +238,8 @@ def test_merge_node():
         
         payload = FlowPayload()
         payload.itemsByPinId = {
-            "pin1": [FlowItem(text="A")],
-            "pin2": [FlowItem(text="B")]
+            "pin1": [FlowItem(json_data={"text": "A"})],
+            "pin2": [FlowItem(json_data={"text": "B"})]
         }
         
         res = execute_node(node, [], {node.id: payload})

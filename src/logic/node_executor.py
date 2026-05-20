@@ -864,6 +864,38 @@ class NodeExecutor:
                     success = False
                     output_items = input_items
 
+            elif node.type == NodeType.JSON_PARSER:
+                output_items = []
+                success_count = 0
+                for item in input_items:
+                    try:
+                        text_to_parse = item.json_data.get("text", "")
+                        parsed = json.loads(text_to_parse)
+                        output_items.append(FlowItem(json_data=parsed))
+                        success_count += 1
+                    except Exception:
+                        output_items.append(item)
+                output = f"Successfully parsed {success_count} of {len(input_items)} item(s)."
+                self._log_info(output)
+
+            elif node.type == NodeType.JSON_FIELD_EXTRACT:
+                field_path = evaluator.evaluate(node.ruleCondition or "")
+                output_items = []
+                for item in input_items:
+                    try:
+                        # simple dot notation path extraction
+                        current = item.json_data
+                        for part in field_path.split('.'):
+                            current = current.get(part) if isinstance(current, dict) else None
+                        
+                        new_item = item.model_copy(deep=True)
+                        new_item.json_data["extracted"] = current
+                        output_items.append(new_item)
+                    except Exception:
+                        output_items.append(item)
+                output = f"Extracted field '{field_path}' into {len(output_items)} item(s)."
+                self._log_info(output)
+
             else:
                 # Default pass-through for unhandled types
                 output = f"Executed {node.type.value}"

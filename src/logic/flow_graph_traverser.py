@@ -45,10 +45,10 @@ class FlowGraphTraverser:
             resolved = evaluator.evaluate(expr_body).strip()
 
             op = None
-            if "!=" in resolved:
-                op = "!="
-            elif "==" in resolved:
-                op = "=="
+            for operator in [">=", "<=", "!=", "==", ">", "<"]:
+                if operator in resolved:
+                    op = operator
+                    break
 
             if op:
                 parts = resolved.split(op, 1)
@@ -61,11 +61,17 @@ class FlowGraphTraverser:
                 try:
                     left_num = float(left_value)
                     right_num = float(right_value)
-                    eq = (left_num == right_num)
+                    if op == "==": eq = (left_num == right_num)
+                    elif op == "!=": eq = (left_num != right_num)
+                    elif op == ">=": eq = (left_num >= right_num)
+                    elif op == "<=": eq = (left_num <= right_num)
+                    elif op == ">": eq = (left_num > right_num)
+                    elif op == "<": eq = (left_num < right_num)
+                    return eq
                 except ValueError:
-                    eq = (left_value.lower() == right_value.lower())
-
-                return eq if op == "==" else not eq
+                    if op == "==": return left_value.lower() == right_value.lower()
+                    elif op == "!=": return left_value.lower() != right_value.lower()
+                    return False
 
             bool_val = FlowGraphTraverser._parse_boolean_like(resolved)
             if bool_val is not None:
