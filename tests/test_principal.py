@@ -204,6 +204,48 @@ def test_limit_node():
     except Exception as e:
         add_result("Node", "LIMIT", False, str(e))
 
+def test_file_save_node():
+    node = NodeData(title="Save File", type=NodeType.FILE_SAVE, fileName="test_save.txt")
+    try:
+        res = execute_node(node, [FlowItem(text="Hello file save")])
+        assert res.success
+        assert os.path.exists("outputs/test_save.txt")
+        add_result("Node", "FILE_SAVE", True, "Successfully saved to file.")
+    except Exception as e:
+        add_result("Node", "FILE_SAVE", False, str(e))
+
+def test_loop_node():
+    node = NodeData(title="Loop", type=NodeType.LOOP_OVER_ITEMS, batchSize=2)
+    try:
+        res = execute_node(node, [FlowItem(text="1"), FlowItem(text="2"), FlowItem(text="3")])
+        assert res.success
+        # Loop node prepares batches, outputItems is just items but it creates iteratorBatches
+        assert len(res.outputItems) == 3
+        add_result("Node", "LOOP_OVER_ITEMS", True, "Successfully batched items.")
+    except Exception as e:
+        add_result("Node", "LOOP_OVER_ITEMS", False, str(e))
+
+def test_merge_node():
+    node = NodeData(title="Merge", type=NodeType.MERGE, mergeMode=MergeMode.APPEND)
+    try:
+        from src.models.node_models import Pin, FlowPayload
+        pin1 = Pin(id="pin1", name="in1")
+        pin2 = Pin(id="pin2", name="in2")
+        node.inputs = [pin1, pin2]
+        
+        payload = FlowPayload()
+        payload.itemsByPinId = {
+            "pin1": [FlowItem(text="A")],
+            "pin2": [FlowItem(text="B")]
+        }
+        
+        res = execute_node(node, [], {node.id: payload})
+        assert res.success
+        assert len(res.outputItems) == 2
+        add_result("Node", "MERGE", True, "Successfully appended multiple pins.")
+    except Exception as e:
+        add_result("Node", "MERGE", False, str(e))
+
 def test_mcp_tools():
     config = ToolRegistry._load_mcp_config()
     for server_name, server_config in config.items():

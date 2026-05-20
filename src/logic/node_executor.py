@@ -829,7 +829,7 @@ class NodeExecutor:
             elif node.type in (NodeType.USER_INPUT, NodeType.PROMPT_INPUT):
                 # Get the prompt text from the node config - THIS IS THE SOURCE OF TRUTH
                 prompt_text = node.promptText if hasattr(node, 'promptText') and node.promptText else (node.userInstruction if hasattr(node, 'userInstruction') and node.userInstruction else None)
-                
+
                 # If we have promptText defined, use it (ignore any lastOutput)
                 if prompt_text:
                     output = prompt_text
@@ -845,6 +845,24 @@ class NodeExecutor:
                     output_items = input_items if input_items else [self._wrap_text_item("No prompt text provided")]
                     output = output_items[0].json_data.get("text", str(output_items[0].json_data)) if output_items else "No input"
                     self._log_info(f"PROMPT_INPUT (pass-through): '{output[:50]}...'")
+
+            elif node.type == NodeType.FILE_SAVE:
+                file_name = evaluator.evaluate(node.fileName) if node.fileName else f"output_{int(time.time())}.txt"
+                content = self._items_to_text(input_items) if input_items else node.lastInput or ""
+                
+                # Ensure the outputs directory exists
+                os.makedirs("outputs", exist_ok=True)
+                file_path = os.path.join("outputs", file_name)
+                
+                try:
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    output = f"Saved {len(content)} bytes to {file_path}"
+                    output_items = input_items  # Pass through the items
+                except Exception as e:
+                    output = f"Failed to save file: {str(e)}"
+                    success = False
+                    output_items = input_items
 
             else:
                 # Default pass-through for unhandled types

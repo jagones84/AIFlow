@@ -1,8 +1,8 @@
 # Comprehensive Node & MCP Stress Test Report
 
 ## Summary
-Total Tests: 24
-Passed: 13
+Total Tests: 27
+Passed: 16
 Failed: 11
 
 ## Details
@@ -45,6 +45,15 @@ Failed: 11
 **Details:** assert 3 == 2
  +  where 3 = len([FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={})])
  +    where [FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={})] = ExecutionResult(output='Limited to 10 items (offset 0). Result: 3 items.', success=True, outputItems=[FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={}), FlowItem(json_data={}, binary={})], shouldTriggerNext=True, shouldStopFlow=False, iteratorBatches=None, loopBatches=None, doneItems=None, updatedNode=None, subWorkflowId=None, subWorkflowInput=None).outputItems
+
+### ✅ PASS: Node - FILE_SAVE
+**Details:** Successfully saved to file.
+
+### ✅ PASS: Node - LOOP_OVER_ITEMS
+**Details:** Successfully batched items.
+
+### ✅ PASS: Node - MERGE
+**Details:** Successfully appended multiple pins.
 
 ### ❌ FAIL: MCP Server - filesystem
 **Details:** Failed to retrieve tools or server is not running properly.
