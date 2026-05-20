@@ -60,12 +60,11 @@ async def get_status():
     logs = LogManager.get_history()
     if current_flow_app:
         nodes = current_flow_app.get_nodes()
+        connections = current_flow_app.get_connections()
         waiting_nodes = [n.id for n in nodes if n.status.value == "WAITING_FOR_USER"]
         
-        # Try to find the last AI output if there's a waiting node
         last_ai_message = ""
         if waiting_nodes:
-            # Look backwards from the waiting node to find the last AI Agent's output
             waiting_node = next((n for n in nodes if n.id == waiting_nodes[0]), None)
             if waiting_node and waiting_node.lastInputItems:
                 last_ai_message = waiting_node.lastInputItems[0].json_data.get("text", "")
@@ -77,18 +76,26 @@ async def get_status():
             "waiting_nodes": waiting_nodes,
             "last_ai_message": last_ai_message,
             "logs": logs,
+            "workflow": {
+                "nodes": [{"id": n.id, "type": n.type.value, "title": n.title} for n in nodes],
+                "connections": [{"from": c.fromNodeId, "to": c.toNodeId} for c in connections]
+            },
             "node_states": [
                 {
                     "id": n.id,
+                    "title": n.title,
                     "status": n.status.value,
                     "type": n.type.value,
-                    "lastOutput": n.lastOutput[:200] if n.lastOutput else None,
-                    "lastInput": n.lastInput[:200] if n.lastInput else None
+                    "lastOutput": n.lastOutput[:500] if n.lastOutput else None,
+                    "lastOutputFull": n.lastOutput if n.lastOutput else None,
+                    "lastInput": n.lastInput[:200] if n.lastInput else None,
+                    "lastInputItems": [item.json_data for item in (n.lastInputItems or [])],
+                    "lastOutputItems": [item.json_data for item in (n.lastOutputItems or [])]
                 }
                 for n in nodes
             ]
         }
-    return {"running_nodes": [], "waiting_nodes": [], "last_ai_message": "", "logs": logs, "node_states": []}
+    return {"running_nodes": [], "waiting_nodes": [], "last_ai_message": "", "logs": logs, "workflow": None, "node_states": []}
 
 class ResumeRequest(BaseModel):
     node_id: str
@@ -432,55 +439,60 @@ async def run_architect_background(prompt: str, model: str):
         
         node_descriptions = """
 AVAILABLE MCP TOOLS (for AI_AGENT's allowedTools):
-- fetch_url: Fetch web pages
-- web_search: Web search
-- calculator: Math calculations
-- get_current_time: Current date/time
 - mcp__Brave Search: Web search (use this for searches)
 - mcp__Fetch: URL fetching (use this for fetching pages)
 
 NODE TYPES:
 • TRIGGER: Starts workflow. `triggerType` (MANUAL, SCHEDULE, WEBHOOK).
-• PROMPT_INPUT: The entry point for the user's request. `promptText`: You MUST set this to the EXACT user request or question that starts the workflow.
-• AI_AGENT: Uses LLM. `modelId` (qwen/qwen3.6-35b-a3b), `systemPrompt`, `allowedTools` (List of tool names like mcp__Brave Search).
+• PROMPT_INPUT: Receives the user's request at workflow runtime and passes it to the next node (usually an AI_AGENT). The `promptText` field = the question or task the user wants answered.
+  - IMPORTANT: Set `promptText` to the EXACT question/task the user wants answered. This gets passed to AI_AGENT.
+  - Example: User asks "what is the weather in Rome?" → PROMPT_INPUT.promptText = "what is the weather in Rome?"
+• AI_AGENT: Uses LLM. `modelId`, `systemPrompt`, `allowedTools` (mcp__Brave Search, mcp__Fetch).
 • TOOL_EXECUTION: Runs a tool. `selectedToolName`.
 • ROUTER: Splits flow. `routerMode` (AI_LLM, SIMPLE_RULE), `ruleCondition`.
 • HTTP_REQUEST: Makes API calls. `httpUrl`, `httpMethod` (GET, POST).
-• SET: Adds/modifies fields. `setFields`.
 • MERGE: Combines branches. `mergeMode` (APPEND, WAIT, CHOOSE_BRANCH).
-• CODE: Runs Python. `codeBody`.
 • OUTPUT_DISPLAY: Final node to show results.
 """
         
-        system_prompt = f"""You are a master workflow architect. Build or edit workflows step by step using your tools.
+        system_prompt = f"""You are a master workflow architect. Your job is to BUILD workflows that ANSWER the user's questions or perform tasks.
 
-YOUR TASK: Build a workflow for this exact user request:
+WHAT THE USER ASKED YOU TO BUILD:
 ---
 {prompt}
 ---
 
-CRITICAL RULE - NEVER VIOLATE THIS:
-The PROMPT_INPUT node's `promptText` field MUST contain the EXACT user request shown above in its ENTIRETY.
-- GOOD: config={{"promptText": "{prompt[:200]}"}}  (if request is short enough, use it verbatim)
-- BAD: config={{"promptText": "Enter your research topic"}}  (NEVER use placeholder text!)
-- BAD: config={{"promptText": "Provide input"}}  (NEVER use generic placeholder!)
-- BAD: config={{"promptText": "Enter a search query"}}  (NEVER use generic instructions!)
+YOUR ROLE:
+- You are designing a workflow that will ANSWER or EXECUTE the user's request above.
+- You are NOT building a workflow that asks the user to design something.
+- Think of yourself as an AI engineer: the user gives you a task, you design a system to complete it.
 
-If the user request is long, put the COMPLETE request text in promptText. Do NOT summarize or paraphrase it.
+WORKFLOW DESIGN PATTERN:
+1. TRIGGER → PROMPT_INPUT → AI_AGENT → OUTPUT_DISPLAY
+2. The PROMPT_INPUT node asks the question or states the task.
+3. The AI_AGENT uses tools to find the answer or complete the task.
 
-WORKFLOW STRUCTURE:
-1. TRIGGER -> PROMPT_INPUT (with actual user request in promptText) -> AI_AGENT -> OUTPUT_DISPLAY
-2. PROMPT_INPUT is where the user's question lives inside the workflow. Its promptText field = the actual user question.
+THE PROMPT_INPUT NODE MUST:
+- Have `promptText` = the question/task the USER wants answered (from "WHAT THE USER ASKED YOU TO BUILD" above).
+- NOT contain instructions like "Design a workflow..." or "Create a test..."
+- Example: If user asks "search for latest soccer match in Italy", set PROMPT_INPUT.promptText = "search for latest soccer match in Italy"
+- The AI_AGENT following it will receive this text and answer it using its tools.
 
-EXAMPLE:
-- User asks: "search for latest soccer match result in Italy"
-- You MUST create: AddNode({{type="PROMPT_INPUT", config={{"promptText": "search for latest soccer match result in Italy"}}}})
+CRITICAL EXAMPLES:
+- User: "what is the weather in Tokyo?" → PROMPT_INPUT.promptText = "what is the weather in Tokyo?" → AI_AGENT uses web_search
+- User: "summarize this article: https://example.com/news" → PROMPT_INPUT.promptText = "summarize this article: https://example.com/news" → AI_AGENT uses fetch_url + summarize
+- User: "Design a comprehensive test workflow..." → PROMPT_INPUT.promptText = "Run a comprehensive test of the engine's capabilities" → AI_AGENT runs the test
 
-You have access to tools: AddNode, UpdateNode, ConnectNodes, RemoveNode, RemoveConnection, GetCurrentGraph, FinishDesign.
-If asked to modify workflow, call GetCurrentGraph first.
+MISTAKES TO AVOID:
+- BAD: PROMPT_INPUT.promptText = "Design a comprehensive test workflow..." (you're the architect, not the workflow's question)
+- GOOD: PROMPT_INPUT.promptText = "Run a comprehensive test of the engine's capabilities" (this is what the workflow asks)
+- BAD: PROMPT_INPUT.promptText = "Enter a search query" (placeholder text, not the actual question)
+- GOOD: PROMPT_INPUT.promptText = "what is today's top news?" (the actual user question)
 
 NODE CONFIGURATION:
 {node_descriptions}
+
+You have access to tools: AddNode, UpdateNode, ConnectNodes, RemoveNode, RemoveConnection, GetCurrentGraph, FinishDesign.
 """
         messages = [{"role": "system", "content": system_prompt}]
         

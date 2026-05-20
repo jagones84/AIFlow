@@ -1102,9 +1102,9 @@
             }
         }
 
-        const ARCHITECT_WELCOME = "Design a comprehensive test workflow that uses the most advanced nodes available. Create an AI_AGENT with access to tools (mcp__Brave Search for web search, mcp__Fetch for URL fetching), include a feedback loop with the user (PROMPT_INPUT), and use various logic nodes (like ROUTER, LOOP, MERGE) to thoroughly test the engine's capabilities.";
+        const ARCHITECT_WELCOME = "search for latest soccer match result in Italy";
 
-        const ARCHITECT_INITIAL_MESSAGE = `<div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start;">Hi! I'm the Architect. Type your request below, or I'll start building a comprehensive test workflow for you.</div><div style="background: #f4ecf7; padding: 8px; border-radius: 4px; align-self: flex-start; margin-top: 5px; font-size: 13px; color: #555;">Example: ${ARCHITECT_WELCOME}</div>`;
+        const ARCHITECT_INITIAL_MESSAGE = `<div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start;">Hi! I'm the Architect. Tell me a question or task, and I'll design a workflow to answer it.</div><div style="background: #f4ecf7; padding: 8px; border-radius: 4px; align-self: flex-start; margin-top: 5px; font-size: 13px; color: #555;">Example: ${ARCHITECT_WELCOME}</div>`;
 
         function runArchitect() {
             const panel = document.getElementById('architect-chat-panel');
@@ -1259,11 +1259,9 @@
                             if (nodeElement) {
                                 const titleBox = nodeElement.querySelector('.title-box');
                                 if (titleBox) {
-                                    // Reset to default
                                     titleBox.style.opacity = '1';
                                     titleBox.style.border = '';
                                     
-                                    // Apply status-based styling
                                     if (nodeState.status === 'RUNNING') {
                                         titleBox.style.border = '2px solid #f1c40f';
                                         titleBox.style.animation = 'pulse 0.5s infinite';
@@ -1280,20 +1278,56 @@
                         });
                     }
                     
-                    // Update Logs
+                    // Update Logs with rich per-node details
                     if (data.logs && data.logs.length > 0) {
                         const logContent = document.getElementById('log-content');
-                        const newHtml = data.logs.map(log => {
-                            let cls = 'log-line';
-                            if (log.includes('[ERROR')) cls += ' log-error';
-                            else if (log.includes('[INFO')) cls += ' log-info';
-                            else if (log.includes('[WARN')) cls += ' log-warn';
-                            return `<div class="${cls}">${log}</div>`;
-                        }).join('');
+                        let newHtml = '';
+                        
+                        // Workflow structure header
+                        if (data.workflow) {
+                            newHtml += '<div class="log-line" style="color:#a29bfe; font-weight:bold;">--- Workflow Structure ---</div>';
+                            data.workflow.nodes.forEach(n => {
+                                newHtml += `<div class="log-line" style="color:#74b9ff;">  [${n.type}] ${n.title || n.id} (ID: ${n.id})</div>`;
+                            });
+                            data.workflow.connections.forEach(c => {
+                                newHtml += `<div class="log-line" style="color:#636e72;">  ${c.from} → ${c.to}</div>`;
+                            });
+                            newHtml += '<div class="log-line" style="color:#a29bfe; font-weight:bold;">--- Execution Logs ---</div>';
+                        }
+                        
+                        // Per-node execution details
+                        if (data.node_states && data.node_states.length > 0) {
+                            data.node_states.forEach(nodeState => {
+                                const statusColor = nodeState.status === 'SUCCESS' ? '#2ecc71' : 
+                                                    nodeState.status === 'FAILURE' ? '#e74c3c' : 
+                                                    nodeState.status === 'RUNNING' ? '#f1c40f' : '#636e72';
+                                newHtml += `<div class="log-line" style="color:${statusColor}; font-weight:bold; border-top:1px solid #2d3436; margin-top:4px;">[${nodeState.status}] ${nodeState.title || nodeState.id} (${nodeState.type})</div>`;
+                                
+                                if (nodeState.lastInputItems && nodeState.lastInputItems.length > 0) {
+                                    newHtml += `<div class="log-line" style="color:#74b9ff;">  INPUT: ${JSON.stringify(nodeState.lastInputItems).substring(0, 300)}${JSON.stringify(nodeState.lastInputItems).length > 300 ? '...' : ''}</div>`;
+                                }
+                                if (nodeState.lastOutputItems && nodeState.lastOutputItems.length > 0) {
+                                    newHtml += `<div class="log-line" style="color:#55efc4;">  OUTPUT: ${JSON.stringify(nodeState.lastOutputItems).substring(0, 300)}${JSON.stringify(nodeState.lastOutputItems).length > 300 ? '...' : ''}</div>`;
+                                } else if (nodeState.lastOutput) {
+                                    newHtml += `<div class="log-line" style="color:#55efc4;">  OUTPUT: ${nodeState.lastOutput.substring(0, 300)}${nodeState.lastOutput.length > 300 ? '...' : ''}</div>`;
+                                }
+                            });
+                        }
+                        
+                        // Raw logs
+                        if (data.logs && data.logs.length > 0) {
+                            newHtml += '<div class="log-line" style="color:#a29bfe; font-weight:bold; border-top:1px solid #2d3436; margin-top:4px;">--- System Logs ---</div>';
+                            data.logs.forEach(log => {
+                                let cls = 'log-line';
+                                if (log.includes('[ERROR')) cls += ' log-error';
+                                else if (log.includes('[INFO')) cls += ' log-info';
+                                else if (log.includes('[WARN')) cls += ' log-warn';
+                                newHtml += `<div class="${cls}">${log}</div>`;
+                            });
+                        }
                         
                         if (logContent.innerHTML !== newHtml) {
                             logContent.innerHTML = newHtml;
-                            // Auto scroll to bottom
                             const panel = document.getElementById('global-log-panel');
                             panel.scrollTop = panel.scrollHeight;
                         }
@@ -1383,41 +1417,70 @@
                     const res = await fetch('/api/status');
                     if (res.ok) {
                         const data = await res.json();
-                        // Clear running class
                         document.querySelectorAll('.drawflow-node').forEach(el => el.classList.remove('running'));
-                        // Add running class
                         data.running_nodes.forEach(id => {
                             const el = document.getElementById('node-' + id);
                             if(el) el.classList.add('running');
                         });
                         
-                        // Update Logs
-                        if (data.logs && data.logs.length > 0) {
+                        // Update Logs with per-node I/O
+                        if (data.node_states && data.node_states.length > 0) {
                             const logContent = document.getElementById('log-content');
-                            const newHtml = data.logs.map(log => {
-                                let cls = 'log-line';
-                                if (log.includes('[ERROR')) cls += ' log-error';
-                                else if (log.includes('[INFO')) cls += ' log-info';
-                                else if (log.includes('[WARN')) cls += ' log-warn';
-                                return `<div class="${cls}">${log}</div>`;
-                            }).join('');
+                            let newHtml = '';
+                            
+                            if (data.workflow) {
+                                newHtml += '<div class="log-line" style="color:#a29bfe; font-weight:bold;">--- Workflow Structure ---</div>';
+                                data.workflow.nodes.forEach(n => {
+                                    newHtml += `<div class="log-line" style="color:#74b9ff;">  [${n.type}] ${n.title || n.id} (ID: ${n.id})</div>`;
+                                });
+                                data.workflow.connections.forEach(c => {
+                                    newHtml += `<div class="log-line" style="color:#636e72;">  ${c.from} → ${c.to}</div>`;
+                                });
+                                newHtml += '<div class="log-line" style="color:#a29bfe; font-weight:bold;">--- Node Execution (Real-time) ---</div>';
+                            }
+                            
+                            data.node_states.forEach(nodeState => {
+                                const statusColor = nodeState.status === 'SUCCESS' ? '#2ecc71' : 
+                                                    nodeState.status === 'FAILURE' ? '#e74c3c' : 
+                                                    nodeState.status === 'RUNNING' ? '#f1c40f' : '#636e72';
+                                newHtml += `<div class="log-line" style="color:${statusColor}; font-weight:bold; border-top:1px solid #2d3436; margin-top:4px;">[${nodeState.status}] ${nodeState.title || nodeState.id} (${nodeState.type})</div>`;
+                                
+                                if (nodeState.lastInputItems && nodeState.lastInputItems.length > 0) {
+                                    const inpStr = JSON.stringify(nodeState.lastInputItems);
+                                    newHtml += `<div class="log-line" style="color:#74b9ff;">  IN: ${inpStr.substring(0, 250)}${inpStr.length > 250 ? '...' : ''}</div>`;
+                                }
+                                if (nodeState.lastOutputItems && nodeState.lastOutputItems.length > 0) {
+                                    const outStr = JSON.stringify(nodeState.lastOutputItems);
+                                    newHtml += `<div class="log-line" style="color:#55efc4;">  OUT: ${outStr.substring(0, 250)}${outStr.length > 250 ? '...' : ''}</div>`;
+                                } else if (nodeState.lastOutput) {
+                                    newHtml += `<div class="log-line" style="color:#55efc4;">  OUT: ${nodeState.lastOutput.substring(0, 250)}${nodeState.lastOutput.length > 250 ? '...' : ''}</div>`;
+                                }
+                            });
+                            
+                            if (data.logs && data.logs.length > 0) {
+                                newHtml += '<div class="log-line" style="color:#a29bfe; font-weight:bold; border-top:1px solid #2d3436; margin-top:4px;">--- System Logs ---</div>';
+                                data.logs.slice(-20).forEach(log => {
+                                    let cls = 'log-line';
+                                    if (log.includes('[ERROR')) cls += ' log-error';
+                                    else if (log.includes('[INFO')) cls += ' log-info';
+                                    else if (log.includes('[WARN')) cls += ' log-warn';
+                                    newHtml += `<div class="${cls}">${log}</div>`;
+                                });
+                            }
                             
                             if (logContent.innerHTML !== newHtml) {
                                 logContent.innerHTML = newHtml;
-                                // Auto scroll to bottom
                                 const panel = document.getElementById('global-log-panel');
                                 panel.scrollTop = panel.scrollHeight;
                             }
                         }
 
-                        // Check for waiting nodes (PROMPT_INPUT pause)
                         if (data.waiting_nodes && data.waiting_nodes.length > 0) {
                             const waitId = data.waiting_nodes[0];
                             const overlay = document.getElementById('chat-overlay');
                             if (overlay.style.display !== 'flex') {
-                                // Add animation class to node
                                 const el = document.getElementById('node-' + waitId);
-                                if(el) el.classList.add('running'); // keep it highlighted
+                                if(el) el.classList.add('running');
                                 
                                 document.getElementById('chat-node-id').value = waitId;
                                 document.getElementById('chat-overlay-message').innerText = data.last_ai_message || "The flow is paused and waiting for your input.";
