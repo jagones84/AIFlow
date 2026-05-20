@@ -399,6 +399,7 @@
                 <input type="text" id="architect-model-select" value="qwen/qwen3.6-35b-a3b" style="font-size: 11px; padding: 2px 5px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.9); color: #333; width: 130px;" placeholder="Model ID" title="Enter OpenRouter model ID" />
                 <a href="https://openrouter.ai/models" target="_blank" title="Browse OpenRouter Models" style="color: white; text-decoration: none; font-size: 14px; pointer-events: auto;">ℹ️</a>
             </div>
+                <span id="architect-stop-btn" style="display: none; cursor:pointer; color: #e74c3c;" onclick="stopArchitect()" title="Stop Architect">🛑</span>
                 <span style="cursor:pointer;" onclick="clearArchitectMemory()" title="Clear Memory">🗑️</span>
                 <span style="cursor:pointer;" onclick="minimizeArchitectChat()" title="Minimize">➖</span>
                 <span style="cursor:pointer;" onclick="document.getElementById('architect-chat-panel').style.display='none'; document.getElementById('architect-chat-fab').style.display='flex';">✖</span>
@@ -410,7 +411,7 @@
                 <div id="architect-status" style="font-size: 12px; color: #7f8c8d; text-align: center; display: none;">Thinking...</div>
                 <div style="display: flex; gap: 5px;">
                     <input type="text" id="architect-chat-input" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" placeholder="Describe changes..." onkeypress="if(event.key === 'Enter') submitArchitectChat()">
-                    <button onclick="submitArchitectChat()" style="padding: 8px 15px; background: #8e44ad; color: white; border: none; border-radius: 4px; cursor: pointer;">Send</button>
+                    <button id="architect-send-btn" onclick="submitArchitectChat()" style="padding: 8px 15px; background: #8e44ad; color: white; border: none; border-radius: 4px; cursor: pointer;">Send</button>
                 </div>
             </div>
         </div>
@@ -485,8 +486,8 @@
             }
         }
 
-        function zoomIn() { editor.zoomIn(); }
-        function zoomOut() { editor.zoomOut(); }
+        function zoomIn() { editor.zoom_in(); }
+        function zoomOut() { editor.zoom_out(); }
         function fitToWindow() {
             const drawflow = document.querySelector('#drawflow');
             const canvas = drawflow.querySelector('.drawflow') || drawflow;
@@ -526,8 +527,7 @@
             canvas.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${1 + zoom})`;
         }
         function resetView() {
-            editor.changeZoom(0);
-            editor.posZoomToZero();
+            editor.zoom_reset();
         }
         var id = document.getElementById("drawflow");
         const editor = new Drawflow(id);
@@ -1119,6 +1119,26 @@
             }
         }
 
+        async function stopArchitect() {
+            try {
+                await fetch('/api/architect/stop', { method: 'POST' });
+                const statusDiv = document.getElementById('architect-status');
+                const indicator = document.getElementById('architect-running-indicator');
+                const fabIndicator = document.getElementById('fab-indicator');
+                const stopBtn = document.getElementById('architect-stop-btn');
+                const sendBtn = document.getElementById('architect-send-btn');
+                if (statusDiv) statusDiv.style.display = 'none';
+                if (indicator) indicator.style.display = 'none';
+                if (fabIndicator) fabIndicator.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = 'none';
+                if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+                const messagesDiv = document.getElementById('architect-chat-messages');
+                if (messagesDiv) messagesDiv.innerHTML += `<div style="background: #f39c12; padding: 8px; border-radius: 4px; align-self: flex-start; max-width: 80%;">Stopped by user. Chat context preserved.</div>`;
+            } catch(e) {
+                console.error("Failed to stop architect:", e);
+            }
+        }
+
         let architectPollInterval = null;
 
         async function submitArchitectChat() {
@@ -1135,9 +1155,14 @@
             const statusDiv = document.getElementById('architect-status');
             const indicator = document.getElementById('architect-running-indicator');
             const fabIndicator = document.getElementById('fab-indicator');
+            const stopBtn = document.getElementById('architect-stop-btn');
+            const sendBtn = document.getElementById('architect-send-btn');
             statusDiv.style.display = 'block';
             indicator.style.display = 'inline';
             fabIndicator.style.display = 'block';
+            stopBtn.style.display = 'inline';
+            sendBtn.disabled = true;
+            sendBtn.style.opacity = '0.5';
             statusDiv.innerText = 'Initializing...';
             
             const modelStr = document.getElementById('architect-model-select').value;

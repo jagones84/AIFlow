@@ -41,6 +41,14 @@ async def clear_architect_chat():
     architect_chat_history = []
     return {"status": "success", "message": "Architect memory cleared."}
 
+@app.post("/api/architect/stop")
+async def stop_architect():
+    global architect_state
+    architect_state["running"] = False
+    architect_state["finished"] = True
+    architect_state["error"] = "Stopped by user"
+    return {"status": "success", "message": "Architect stopped."}
+
 @app.get("/api/status")
 async def get_status():
     global current_flow_app

@@ -165,6 +165,7 @@ class NodeData(BaseModel):
     webhookPath: Optional[str] = None
     
     userInstruction: Optional[str] = None
+    promptText: Optional[str] = None
     isInteractive: bool = False
     
     attachedUris: List[str] = Field(default_factory=list)
