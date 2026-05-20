@@ -447,7 +447,7 @@ NODE TYPES:
 • PROMPT_INPUT: Receives the user's request at workflow runtime and passes it to the next node (usually an AI_AGENT). The `promptText` field = the question or task the user wants answered.
   - IMPORTANT: Set `promptText` to the EXACT question/task the user wants answered. This gets passed to AI_AGENT.
   - Example: User asks "what is the weather in Rome?" → PROMPT_INPUT.promptText = "what is the weather in Rome?"
-• AI_AGENT: Uses LLM. `modelId`, `systemPrompt`, `allowedTools` (mcp__Brave Search, mcp__Fetch).
+• AI_AGENT: Uses LLM. `modelId` (DEFAULT: "qwen/qwen3.6-35b-a3b" — ALWAYS use this model, do NOT use GPT-4, Claude, or any other model), `systemPrompt`, `allowedTools` (mcp__Brave Search, mcp__Fetch).
 • TOOL_EXECUTION: Runs a tool. `selectedToolName`.
 • ROUTER: Splits flow. `routerMode` (AI_LLM, SIMPLE_RULE), `ruleCondition`.
 • HTTP_REQUEST: Makes API calls. `httpUrl`, `httpMethod` (GET, POST).
