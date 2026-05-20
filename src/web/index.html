@@ -396,8 +396,8 @@
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span id="architect-running-indicator" style="display: none; color: #f1c40f; animation: blink 1s infinite;">⚙️</span>
             <div style="display: flex; gap: 5px; align-items: center;">
-                <input type="text" id="architect-model-select" value="qwen/qwen3.6-35b-a3b" style="font-size: 11px; padding: 2px 5px; border-radius: 3px; border: none; background: rgba(255,255,255,0.2); color: white; width: 140px;" placeholder="Model ID" title="Enter OpenRouter model ID" />
-                <a href="https://openrouter.ai/models" target="_blank" title="Browse OpenRouter Models" style="color: white; text-decoration: none; font-size: 14px;">ℹ️</a>
+                <input type="text" id="architect-model-select" value="qwen/qwen3.6-35b-a3b" style="font-size: 11px; padding: 2px 5px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.9); color: #333; width: 130px;" placeholder="Model ID" title="Enter OpenRouter model ID" />
+                <a href="https://openrouter.ai/models" target="_blank" title="Browse OpenRouter Models" style="color: white; text-decoration: none; font-size: 14px; pointer-events: auto;">ℹ️</a>
             </div>
                 <span style="cursor:pointer;" onclick="clearArchitectMemory()" title="Clear Memory">🗑️</span>
                 <span style="cursor:pointer;" onclick="minimizeArchitectChat()" title="Minimize">➖</span>
@@ -445,14 +445,15 @@
 
         function dragElement(elmnt, dragHandle) {
             let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-            if (dragHandle) {
-                dragHandle.onmousedown = dragMouseDown;
-            } else {
-                elmnt.onmousedown = dragMouseDown;
-            }
-
+            let isDragging = false;
+            
             function dragMouseDown(e) {
+                // Don't drag if clicking on input, select, or link
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'A' || e.target.tagName === 'TEXTAREA') {
+                    return;
+                }
                 e.preventDefault();
+                isDragging = true;
                 pos3 = e.clientX;
                 pos4 = e.clientY;
                 document.onmouseup = closeDragElement;
@@ -460,6 +461,7 @@
             }
 
             function elementDrag(e) {
+                if (!isDragging) return;
                 e.preventDefault();
                 pos1 = pos3 - e.clientX;
                 pos2 = pos4 - e.clientY;
@@ -471,8 +473,15 @@
             }
 
             function closeDragElement() {
+                isDragging = false;
                 document.onmouseup = null;
                 document.onmousemove = null;
+            }
+            
+            if (dragHandle) {
+                dragHandle.onmousedown = dragMouseDown;
+            } else {
+                elmnt.onmousedown = dragMouseDown;
             }
         }
 

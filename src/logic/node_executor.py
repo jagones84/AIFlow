@@ -811,24 +811,24 @@ class NodeExecutor:
                 self._log_info(f"Merge '{node.title}' finished ({node.mergeMode}).")
 
             elif node.type in (NodeType.USER_INPUT, NodeType.PROMPT_INPUT):
-                # Get the prompt text from the node config
-                prompt_text = node.promptText if hasattr(node, 'promptText') else (node.userInstruction if hasattr(node, 'userInstruction') else None)
+                # Get the prompt text from the node config - THIS IS THE SOURCE OF TRUTH
+                prompt_text = node.promptText if hasattr(node, 'promptText') and node.promptText else (node.userInstruction if hasattr(node, 'userInstruction') and node.userInstruction else None)
                 
-                # If node has stored output from a previous run, use it
-                if node.lastOutput:
-                    output = node.lastOutput
-                    output_items = [self._wrap_text_item(output)]
-                    self._log_info(f"Prompt input processed: {output[:50]}...")
-                # Otherwise use the promptText field
-                elif prompt_text:
+                # If we have promptText defined, use it (ignore any lastOutput)
+                if prompt_text:
                     output = prompt_text
                     output_items = [self._wrap_text_item(output)]
-                    self._log_info(f"Prompt input: {prompt_text[:50]}...")
-                # Pass through input if no prompt defined
+                    self._log_info(f"PROMPT_INPUT: '{prompt_text[:80]}...'")
+                # Only use lastOutput if no promptText defined (for user interactive scenarios)
+                elif node.lastOutput:
+                    output = node.lastOutput
+                    output_items = [self._wrap_text_item(output)]
+                    self._log_info(f"PROMPT_INPUT (from lastOutput): '{output[:50]}...'")
+                # Fallback: pass through input
                 else:
                     output_items = input_items if input_items else [self._wrap_text_item("No prompt text provided")]
-                    output = output_items[0].json_data.get("text", str(output_items[0].json_data))
-                    self._log_info(f"Prompt input passed through: {output[:50]}...")
+                    output = output_items[0].json_data.get("text", str(output_items[0].json_data)) if output_items else "No input"
+                    self._log_info(f"PROMPT_INPUT (pass-through): '{output[:50]}...'")
 
             else:
                 # Default pass-through for unhandled types
