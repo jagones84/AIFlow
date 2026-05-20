@@ -219,13 +219,21 @@
     <header>
         <div><strong>AI Flow Visual Editor</strong> (Python Engine)</div>
         <div>
-            <button class="run-btn" style="background:#2c3e50; margin-right:10px;" onclick="newProject()">📝 New Project</button>
-            <button class="run-btn" style="background:#8e44ad; margin-right:10px;" onclick="runArchitect()">🪄 Architect</button>
-            <button class="run-btn" style="background:#f39c12; margin-right:10px;" onclick="saveWorkflow()">💾 Save</button>
-            <button class="run-btn" style="background:#3498db; margin-right:10px;" onclick="loadWorkflow()">📂 Load</button>
-            <button class="run-btn" style="background:#7f8c8d; margin-right:10px;" onclick="openSettings()">⚙️ Settings</button>
-            <button class="run-btn" id="run-btn" onclick="exportAndRun()">▶ Execute Workflow</button>
-            <button class="run-btn" id="stop-btn" style="background:#e74c3c; display:none; margin-left:10px;" onclick="stopWorkflow()">🛑 Stop</button>
+            <button class="run-btn" style="background:#2c3e50; margin-right:5px;" onclick="newProject()">📝 New</button>
+            <button class="run-btn" style="background:#8e44ad; margin-right:5px;" onclick="runArchitect()">🪄 Architect</button>
+            <button class="run-btn" style="background:#f39c12; margin-right:5px;" onclick="saveWorkflow()">💾 Save</button>
+            <button class="run-btn" style="background:#3498db; margin-right:5px;" onclick="loadWorkflow()">📂 Load</button>
+            <button class="run-btn" style="background:#7f8c8d; margin-right:5px;" onclick="openSettings()">⚙️</button>
+            <span style="margin: 0 8px; color: #999;">|</span>
+            <button class="run-btn" style="background:#95a5a6; margin-right:5px; padding: 8px 10px;" onclick="editor.zoomIn()" title="Zoom In">🔍+</button>
+            <button class="run-btn" style="background:#95a5a6; margin-right:5px; padding: 8px 10px;" onclick="editor.zoomOut()" title="Zoom Out">🔍-</button>
+            <button class="run-btn" style="background:#95a5a6; margin-right:5px; padding: 8px 10px;" onclick="editor.posZoomToZero(); editor.changeZoom(0);" title="Reset View">🎯</button>
+            <span style="margin: 0 8px; color: #999;">|</span>
+            <button class="run-btn" id="run-btn" onclick="exportAndRun()">▶ Execute</button>
+            <button class="run-btn" id="stop-btn" style="background:#e74c3c; display:none; margin-left:5px;" onclick="stopWorkflow()">🛑 Stop</button>
+            <span style="margin: 0 8px; color: #999;">|</span>
+            <button class="run-btn" style="background:#e74c3c; margin-right:5px;" onclick="clearWorkflow()">🗑️ Clear</button>
+            <button class="run-btn" style="background:#27ae60;" onclick="downloadWorkflow()">⬇️ Export JSON</button>
         </div>
     </header>
     <div class="container">
@@ -384,23 +392,56 @@
     <!-- Architect Chat Panel -->
     <div id="architect-chat-panel" style="display: none; position: fixed; top: 70px; right: 20px; width: 350px; height: 500px; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000; flex-direction: column;">
         <div id="architect-chat-header" style="background: #8e44ad; color: white; padding: 10px; border-radius: 8px 8px 0 0; font-weight: bold; display: flex; justify-content: space-between; cursor: move;">
-            <span>🪄 Architect Chat</span>
-            <div>
-                <span style="cursor:pointer; margin-right: 10px;" onclick="clearArchitectMemory()" title="Clear Memory">🗑️</span>
-                <span style="cursor:pointer;" onclick="document.getElementById('architect-chat-panel').style.display='none'">✖</span>
+            <span>🪄 Architect</span>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <span id="architect-running-indicator" style="display: none; color: #f1c40f; animation: blink 1s infinite;">⚙️</span>
+                <select id="architect-model-select" style="font-size: 11px; padding: 2px; border-radius: 3px; border: none; background: rgba(255,255,255,0.2); color: white; cursor: pointer;">
+                    <option value="qwen/qwen3.6-35b-a3b">Qwen 3.6B</option>
+                    <option value="anthropic/claude-3.5-haiku">Claude Haiku</option>
+                    <option value="google/gemini-2.0-flash-thinking-exp">Gemini Flash</option>
+                    <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
+                </select>
+                <span style="cursor:pointer;" onclick="clearArchitectMemory()" title="Clear Memory">🗑️</span>
+                <span style="cursor:pointer;" onclick="minimizeArchitectChat()" title="Minimize">➖</span>
+                <span style="cursor:pointer;" onclick="document.getElementById('architect-chat-panel').style.display='none'; document.getElementById('architect-chat-fab').style.display='flex';">✖</span>
             </div>
         </div>
-        <div id="architect-chat-messages" style="padding: 15px; flex: 1; overflow-y: auto; font-size: 14px; background: #f9f9f9; display: flex; flex-direction: column; gap: 10px;"></div>
-        <div style="padding: 10px; border-top: 1px solid #eee; display: flex; flex-direction: column; gap: 5px;">
-            <div id="architect-status" style="font-size: 12px; color: #7f8c8d; text-align: center; display: none;">Thinking...</div>
-            <div style="display: flex; gap: 5px;">
-                <input type="text" id="architect-chat-input" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" placeholder="Describe changes..." onkeypress="if(event.key === 'Enter') submitArchitectChat()">
-                <button onclick="submitArchitectChat()" style="padding: 8px 15px; background: #8e44ad; color: white; border: none; border-radius: 4px; cursor: pointer;">Send</button>
+        <div id="architect-chat-body" style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
+            <div id="architect-chat-messages" style="padding: 15px; flex: 1; overflow-y: auto; font-size: 14px; background: #f9f9f9; display: flex; flex-direction: column; gap: 10px;"></div>
+            <div style="padding: 10px; border-top: 1px solid #eee; display: flex; flex-direction: column; gap: 5px;">
+                <div id="architect-status" style="font-size: 12px; color: #7f8c8d; text-align: center; display: none;">Thinking...</div>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="architect-chat-input" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" placeholder="Describe changes..." onkeypress="if(event.key === 'Enter') submitArchitectChat()">
+                    <button onclick="submitArchitectChat()" style="padding: 8px 15px; background: #8e44ad; color: white; border: none; border-radius: 4px; cursor: pointer;">Send</button>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Architect FAB (Floating Action Button when minimized) -->
+    <div id="architect-chat-fab" style="display: none; position: fixed; bottom: 80px; right: 20px; width: 50px; height: 50px; background: #8e44ad; border-radius: 50%; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 1000; cursor: pointer; align-items: center; justify-content: center; color: white; font-size: 20px;" onclick="openArchitectChat()">
+        <span id="fab-indicator" style="position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; background: #f1c40f; border-radius: 50%; display: none;"></span>
+        🪄
+    </div>
+
+    <style>
+        @keyframes blink { 50% { opacity: 0.5; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        #architect-chat-fab:hover { transform: scale(1.1); }
+        #architect-running-indicator { animation: blink 1s infinite; }
+    </style>
+
     <script>
+        function minimizeArchitectChat() {
+            document.getElementById('architect-chat-panel').style.display = 'none';
+            document.getElementById('architect-chat-fab').style.display = 'flex';
+        }
+
+        function openArchitectChat() {
+            document.getElementById('architect-chat-panel').style.display = 'flex';
+            document.getElementById('architect-chat-fab').style.display = 'none';
+        }
+
         // Make Architect chat panel draggable
         dragElement(document.getElementById("architect-chat-panel"), document.getElementById("architect-chat-header"));
 
@@ -944,6 +985,28 @@
             }
         }
 
+        function clearWorkflow() {
+            if (confirm("Are you sure you want to delete ALL nodes? This cannot be undone.")) {
+                const data = editor.export();
+                for (const nodeId in data.drawflow.Home.data) {
+                    editor.removeNodeId(nodeId);
+                }
+            }
+        }
+
+        function downloadWorkflow() {
+            const data = JSON.stringify(editor.export(), null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'workflow_' + new Date().toISOString().slice(0,10) + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
         function getInternalGraphFormat() {
             const exportData = editor.export().drawflow.Home.data;
             const nodes = [];
@@ -1017,10 +1080,14 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             
             const statusDiv = document.getElementById('architect-status');
+            const indicator = document.getElementById('architect-running-indicator');
+            const fabIndicator = document.getElementById('fab-indicator');
             statusDiv.style.display = 'block';
+            indicator.style.display = 'inline';
+            fabIndicator.style.display = 'block';
             statusDiv.innerText = 'Initializing...';
             
-            const modelStr = "qwen/qwen3.6-35b-a3b";
+            const modelStr = document.getElementById('architect-model-select').value;
             const currentGraph = getInternalGraphFormat();
             
             try {
@@ -1036,12 +1103,16 @@
                 } catch(parseErr) {
                     alert("Error: Invalid JSON response: " + text.substring(0, 200));
                     statusDiv.style.display = 'none';
+                    indicator.style.display = 'none';
+                    fabIndicator.style.display = 'none';
                     return;
                 }
                 
                 if(data.status === 'error') {
                     alert("Failed to start Architect: " + (data.message || "Unknown error"));
                     statusDiv.style.display = 'none';
+                    indicator.style.display = 'none';
+                    fabIndicator.style.display = 'none';
                     return;
                 }
                 
@@ -1060,6 +1131,8 @@
                         
                         if (!results.running && results.finished) {
                             statusDiv.style.display = 'none';
+                            indicator.style.display = 'none';
+                            fabIndicator.style.display = 'none';
                             
                             if (results.error) {
                                 messagesDiv.innerHTML += `<div style="background: #fadbd8; padding: 8px; border-radius: 4px; align-self: flex-start; max-width: 80%; color: #c0392b;">Error: ${results.error}</div>`;
@@ -1082,11 +1155,15 @@
                 
                 if (pollCount >= maxPolls) {
                     statusDiv.style.display = 'none';
+                    indicator.style.display = 'none';
+                    fabIndicator.style.display = 'none';
                     messagesDiv.innerHTML += `<div style="background: #fadbd8; padding: 8px; border-radius: 4px; align-self: flex-start; max-width: 80%; color: #c0392b;">Timed out.</div>`;
                 }
                 
             } catch(e) {
                 statusDiv.style.display = 'none';
+                indicator.style.display = 'none';
+                fabIndicator.style.display = 'none';
                 alert("Error connecting to Architect: " + e.message || String(e));
             }
         }
