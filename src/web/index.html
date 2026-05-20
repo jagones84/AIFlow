@@ -1038,11 +1038,18 @@
 
         function clearWorkflow() {
             if (confirm("Are you sure you want to delete ALL nodes? This cannot be undone.")) {
-                const data = editor.export();
-                const nodeIds = Object.keys(data.drawflow.Home.data);
-                // Remove in reverse order to avoid index issues
-                for (let i = nodeIds.length - 1; i >= 0; i--) {
-                    editor.removeNodeId(nodeIds[i]);
+                try {
+                    const data = editor.export();
+                    if (!data || !data.drawflow || !data.drawflow.Home || !data.drawflow.Home.data) {
+                        return;
+                    }
+                    const nodeIds = Object.keys(data.drawflow.Home.data);
+                    for (let i = nodeIds.length - 1; i >= 0; i--) {
+                        editor.removeNodeId(nodeIds[i]);
+                    }
+                } catch(e) {
+                    console.error("Clear error:", e);
+                    alert("Error clearing: " + e);
                 }
             }
         }
