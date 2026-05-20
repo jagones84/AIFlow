@@ -317,6 +317,13 @@ class NodeExecutor:
                         import re
                         original_model = model_id
                         
+                        # First, set target_model with proper prefix handling
+                        target_model = model_id
+                        if target_model.startswith("openrouter/"):
+                            target_model = target_model[11:]
+                        elif "/" not in target_model:
+                            target_model = f"openrouter/{model_id}"
+                        
                         # Fix patterns like "qwen/qwen3.6-35b-a3b-a3b" -> "qwen/qwen3.6-35b-a3b"
                         # Pattern: word/word...-suffix-suffix
                         match = re.match(r'^(\w+/(\w+[-\w]*))-\w+$', target_model)
@@ -324,7 +331,7 @@ class NodeExecutor:
                             target_model = match.group(1)
                             local_log_info(f"Fixed duplicate suffix in model: '{original_model}' -> '{target_model}'")
                         
-                        if target_model != original_model:
+                        if target_model != original_model and not match:
                             local_log_info(f"Sanitized model from '{original_model}' to '{target_model}'")
                         
                         kwargs = {

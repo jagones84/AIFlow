@@ -49,6 +49,11 @@ async def stop_architect():
     architect_state["error"] = "Stopped by user"
     return {"status": "success", "message": "Architect stopped."}
 
+@app.get("/api/architect/mcp-tools")
+async def get_architect_mcp_tools():
+    from src.logic.tools import ToolRegistry
+    return {"tools": ToolRegistry.get_available_tools()}
+
 @app.get("/api/status")
 async def get_status():
     global current_flow_app
@@ -426,9 +431,18 @@ async def run_architect_background(prompt: str, model: str):
             target_model = f"openrouter/{target_model}"
         
         node_descriptions = """
+AVAILABLE MCP TOOLS (for AI_AGENT's allowedTools):
+- fetch_url: Fetch web pages
+- web_search: Web search
+- calculator: Math calculations
+- get_current_time: Current date/time
+- mcp__Brave Search: Web search (use this for searches)
+- mcp__Fetch: URL fetching (use this for fetching pages)
+
+NODE TYPES:
 • TRIGGER: Starts workflow. `triggerType` (MANUAL, SCHEDULE, WEBHOOK).
 • PROMPT_INPUT: The entry point for the user's request. `promptText`: You MUST set this to the EXACT user request or question that starts the workflow.
-• AI_AGENT: Uses LLM. `modelId` (qwen/qwen3.6-35b-a3b), `systemPrompt`, `allowedTools` (List of tool names).
+• AI_AGENT: Uses LLM. `modelId` (qwen/qwen3.6-35b-a3b), `systemPrompt`, `allowedTools` (List of tool names like mcp__Brave Search).
 • TOOL_EXECUTION: Runs a tool. `selectedToolName`.
 • ROUTER: Splits flow. `routerMode` (AI_LLM, SIMPLE_RULE), `ruleCondition`.
 • HTTP_REQUEST: Makes API calls. `httpUrl`, `httpMethod` (GET, POST).
@@ -587,10 +601,21 @@ NODE CONFIGURATION:
                 await asyncio.sleep(1)
                 
             except Exception as te:
-                LogManager.error("Architect", f"Error: {str(te)}")
-                architect_state["error"] = str(te)
-                architect_state["running"] = False
-                return
+                error_str = str(te)
+                LogManager.error("Architect", f"Error: {error_str}")
+                architect_state["error"] = error_str[:200]
+                
+                # If it's a provider/API error, try to continue the loop
+                if "400" in error_str or "401" in error_str or "429" in error_str or "rate limit" in error_str.lower():
+                    architect_state["last_action"] = "API error, retrying..."
+                    messages.append({"role": "user", "content": f"I encountered an error: {error_str[:200]}. Please try a different approach or call FinishDesign."})
+                    architect_state["running"] = True  # Keep running
+                    architect_state["error"] = None
+                    await asyncio.sleep(2)
+                    continue
+                else:
+                    architect_state["running"] = False
+                    return
         
         # Convert to Drawflow format
         df_data = {}
