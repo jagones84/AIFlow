@@ -381,6 +381,27 @@
         </div>
     </div>
 
+    <!-- Architect Chat Panel -->
+    <div id="architect-chat-panel" style="display: none; position: fixed; top: 70px; right: 20px; width: 350px; height: 500px; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000; flex-direction: column;">
+        <div style="background: #8e44ad; color: white; padding: 10px; border-radius: 8px 8px 0 0; font-weight: bold; display: flex; justify-content: space-between;">
+            <span>🪄 Architect Chat</span>
+            <div>
+                <span style="cursor:pointer; margin-right: 10px;" onclick="clearArchitectMemory()" title="Clear Memory">🗑️</span>
+                <span style="cursor:pointer;" onclick="document.getElementById('architect-chat-panel').style.display='none'">✖</span>
+            </div>
+        </div>
+        <div id="architect-chat-messages" style="padding: 15px; flex: 1; overflow-y: auto; font-size: 14px; background: #f9f9f9; display: flex; flex-direction: column; gap: 10px;">
+            <div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start;">Hi! I'm the Architect. Describe the workflow you want to build or edit.</div>
+        </div>
+        <div style="padding: 10px; border-top: 1px solid #eee; display: flex; flex-direction: column; gap: 5px;">
+            <div id="architect-status" style="font-size: 12px; color: #7f8c8d; text-align: center; display: none;">Thinking...</div>
+            <div style="display: flex; gap: 5px;">
+                <input type="text" id="architect-chat-input" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" placeholder="Describe changes..." onkeypress="if(event.key === 'Enter') submitArchitectChat()">
+                <button onclick="submitArchitectChat()" style="padding: 8px 15px; background: #8e44ad; color: white; border: none; border-radius: 4px; cursor: pointer;">Send</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         var id = document.getElementById("drawflow");
         const editor = new Drawflow(id);
@@ -890,86 +911,76 @@
             }
         }
 
-        async function runArchitect() {
-            // Check for OpenRouter API Key
-            let hasKey = false;
+        function getInternalGraphFormat() {
+            const exportData = editor.export().drawflow.Home.data;
+            const nodes = [];
+            const connections = [];
+
+            for (const key in exportData) {
+                const dfNode = exportData[key];
+                const nodeData = dfNode.data;
+                
+                nodes.push({
+                    id: dfNode.id.toString(),
+                    type: nodeData.type,
+                    title: nodeData.title || nodeData.type,
+                    pos_x: dfNode.pos_x,
+                    pos_y: dfNode.pos_y,
+                    config: nodeData.config || {}
+                });
+                
+                let outKeys = Object.keys(dfNode.outputs);
+                outKeys.forEach(outKey => {
+                    dfNode.outputs[outKey].connections.forEach(conn => {
+                        connections.push({
+                            fromNode: String(dfNode.id),
+                            toNode: String(conn.node)
+                        });
+                    });
+                });
+            }
+            return { nodes, connections };
+        }
+
+        async function clearArchitectMemory() {
             try {
-                const resEnv = await fetch('/api/env');
-                const envData = await resEnv.json();
-                if (envData.has_openrouter || envData.openrouter) hasKey = true;
-            } catch(e) {}
+                await fetch('/api/architect/chat', { method: 'DELETE' });
+                document.getElementById('architect-chat-messages').innerHTML = '<div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start;">Memory cleared. How can I help?</div>';
+            } catch(e) {
+                console.error("Failed to clear memory", e);
+            }
+        }
 
-            if (!hasKey) {
-                alert("Please set your OpenRouter API Key in Settings first to use the Architect.");
-                return;
-            }
+        function runArchitect() {
+            const panel = document.getElementById('architect-chat-panel');
+            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+        }
 
-            const modelStr = prompt("Enter the model for the Architect (default: qwen/qwen3.6-35b-a3b):", "qwen/qwen3.6-35b-a3b");
-            if (!modelStr) return;
+        let architectPollInterval = null;
 
-            const defaultPrompt = "Design a comprehensive test workflow that uses the most advanced nodes available. Create an AI_AGENT with access to tools, include a feedback loop with the user (USER_INPUT with 'Wait for User'), and use various logic nodes (like ROUTER, LOOP, MERGE) to thoroughly test the engine's capabilities.";
-            const promptStr = prompt("Describe the workflow you want to build:", defaultPrompt);
-            if(!promptStr) return;
+        async function submitArchitectChat() {
+            const input = document.getElementById('architect-chat-input');
+            const promptStr = input.value.trim();
+            if (!promptStr) return;
             
-            const btn = document.querySelector('.architect-btn');
-            if (btn) {
-                btn.dataset.originalText = btn.innerText;
-                btn.innerHTML = `<span class="spinner" style="display:inline-block; margin-right:5px; animation: spin 1s linear infinite;">⏳</span> Designing...`;
-                btn.style.opacity = "0.7";
-                btn.style.pointerEvents = "none";
-            }
+            input.value = '';
             
-            // Show a dedicated animated overlay
-            let overlay = document.getElementById('architect-overlay');
-            if (!overlay) {
-                overlay = document.createElement('div');
-                overlay.id = 'architect-overlay';
-                overlay.innerHTML = `
-                    <div style="background: rgba(0,0,0,0.8); position: fixed; top:0; left:0; right:0; bottom:0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-                        <div style="font-size: 40px; margin-bottom: 20px; animation: spin 1.5s linear infinite;">⚙️</div>
-                        <h2 style="margin: 0; padding: 0;">Architect is designing your workflow...</h2>
-                        <p id="architect-overlay-status" style="color: #3498db; margin-top: 10px; font-weight: bold;">Initializing...</p>
-                    </div>
-                    <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
-                `;
-                document.body.appendChild(overlay);
-            }
-            overlay.style.display = 'flex';
+            const messagesDiv = document.getElementById('architect-chat-messages');
+            messagesDiv.innerHTML += `<div style="background: #d4e6f1; padding: 8px; border-radius: 4px; align-self: flex-end; max-width: 80%;">${promptStr}</div>`;
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
             
-            // Start global log polling during Architect execution so user sees real-time log updates
-            if (!window.globalLogPoller) {
-                window.globalLogPoller = setInterval(fetchAndUpdateLogs, 1000);
-            }
+            const statusDiv = document.getElementById('architect-status');
+            statusDiv.style.display = 'block';
+            statusDiv.innerText = 'Initializing...';
             
-            // Add a log entry in the UI so user knows it started
-            const logContent = document.getElementById('log-content');
-            if (logContent) {
-                const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-                logContent.innerHTML += `<div class="log-line log-info">[INFO ${time}] [Architect] Starting design process for: "${promptStr}"</div>`;
-                const panel = document.getElementById('global-log-panel');
-                if (panel) panel.scrollTop = panel.scrollHeight;
-            }
-            
-            // Poll for architect graph updates while designing (for the overlay text)
-            const pollInterval = setInterval(async () => {
-                try {
-                    const res = await fetch('/api/architect/graph');
-                    if (res.ok) {
-                        const graphData = await res.json();
-                        if (graphData.last_action) {
-                            // Update overlay text
-                            const overlayStatus = document.getElementById('architect-overlay-status');
-                            if (overlayStatus) overlayStatus.innerText = graphData.last_action;
-                        }
-                    }
-                } catch(e) {}
-            }, 1000);
+            const modelStr = "qwen/qwen3.6-35b-a3b";
+            const currentGraph = getInternalGraphFormat();
             
             try {
                 const res = await fetch('/api/architect', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({prompt: promptStr, model: modelStr})
+                    body: JSON.stringify({prompt: promptStr, model: modelStr, currentGraph: currentGraph})
                 });
                 const text = await res.text();
                 let data;
@@ -977,19 +988,18 @@
                     data = JSON.parse(text);
                 } catch(parseErr) {
                     alert("Error: Invalid JSON response: " + text.substring(0, 200));
+                    statusDiv.style.display = 'none';
                     return;
                 }
                 
                 if(data.status === 'error') {
                     alert("Failed to start Architect: " + (data.message || "Unknown error"));
-                    clearInterval(pollInterval);
-                    if (overlay) overlay.style.display = 'none';
+                    statusDiv.style.display = 'none';
                     return;
                 }
                 
-                // Architect started - poll for results
                 let pollCount = 0;
-                const maxPolls = 300; // 5 minutes max
+                const maxPolls = 300; 
                 
                 while (pollCount < maxPolls) {
                     await new Promise(r => setTimeout(r, 1000));
@@ -999,19 +1009,22 @@
                         const resultsText = await resultsRes.text();
                         const results = JSON.parse(resultsText);
                         
-                        // Update overlay status
-                        const overlayStatus = document.getElementById('architect-overlay-status');
-                        if (overlayStatus) overlayStatus.innerText = results.last_action || "Thinking...";
+                        statusDiv.innerText = results.last_action || "Thinking...";
                         
                         if (!results.running && results.finished) {
+                            statusDiv.style.display = 'none';
+                            
                             if (results.error) {
-                                alert("Architect error: " + results.error);
-                            } else if (results.drawflow) {
-                                editor.import(results.drawflow);
-                                alert("Workflow generated successfully!");
+                                messagesDiv.innerHTML += `<div style="background: #fadbd8; padding: 8px; border-radius: 4px; align-self: flex-start; max-width: 80%; color: #c0392b;">Error: ${results.error}</div>`;
                             } else {
-                                alert("Architect finished but no workflow was generated.");
+                                if (results.drawflow) {
+                                    editor.import(results.drawflow);
+                                    messagesDiv.innerHTML += `<div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start; max-width: 80%;">I've updated the workflow!</div>`;
+                                } else {
+                                    messagesDiv.innerHTML += `<div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start; max-width: 80%;">I processed your request, but no changes were made.</div>`;
+                                }
                             }
+                            messagesDiv.scrollTop = messagesDiv.scrollHeight;
                             break;
                         }
                     } catch(e) {
@@ -1021,23 +1034,13 @@
                 }
                 
                 if (pollCount >= maxPolls) {
-                    alert("Architect timed out after 5 minutes.");
+                    statusDiv.style.display = 'none';
+                    messagesDiv.innerHTML += `<div style="background: #fadbd8; padding: 8px; border-radius: 4px; align-self: flex-start; max-width: 80%; color: #c0392b;">Timed out.</div>`;
                 }
                 
             } catch(e) {
+                statusDiv.style.display = 'none';
                 alert("Error connecting to Architect: " + e.message || String(e));
-            } finally {
-                clearInterval(pollInterval);
-                if (window.globalLogPoller) {
-                    clearInterval(window.globalLogPoller);
-                    window.globalLogPoller = null;
-                }
-                if (btn) {
-                    btn.innerText = btn.dataset.originalText || "🪄 Architect";
-                    btn.style.opacity = "1";
-                    btn.style.pointerEvents = "auto";
-                }
-                if (overlay) overlay.style.display = 'none';
             }
         }
 

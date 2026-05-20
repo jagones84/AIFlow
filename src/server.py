@@ -32,6 +32,15 @@ architect_state = {
     "last_action": "Initializing..."
 }
 
+# Global architect chat history
+architect_chat_history = []
+
+@app.delete("/api/architect/chat")
+async def clear_architect_chat():
+    global architect_chat_history
+    architect_chat_history = []
+    return {"status": "success", "message": "Architect memory cleared."}
+
 @app.get("/api/status")
 async def get_status():
     global current_flow_app
@@ -387,6 +396,8 @@ async def run_architect_background(prompt: str, model: str):
         tools = [
             {"type": "function", "function": {"name": "AddNode", "description": "Adds a new node to the workflow.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}, "type": {"type": "string", "enum": ["TRIGGER", "AI_AGENT", "TOOL_EXECUTION", "ROUTER", "SWITCH", "USER_INPUT", "KNOWLEDGE", "JSON_PARSER", "JSON_FIELD_EXTRACT", "MERGE", "LOOP_OVER_ITEMS", "VARIABLE_STORE", "FILE_SAVE", "STOP_AND_ERROR", "HTTP_REQUEST", "WAIT", "CODE", "SET", "FILTER", "SORT", "LIMIT", "AGGREGATE", "REMOVE_DUPLICATES", "SPLIT_OUT", "SUMMARIZE", "OUTPUT_DISPLAY"]}, "title": {"type": "string"}, "x": {"type": "integer"}, "y": {"type": "integer"}, "config": {"type": "object", "properties": {"userInstruction": {"type": "string"}, "isInteractive": {"type": "boolean"}, "modelId": {"type": "string"}, "systemPrompt": {"type": "string"}, "allowedTools": {"type": "array", "items": {"type": "string"}}, "selectedToolName": {"type": "string"}, "httpUrl": {"type": "string"}, "httpMethod": {"type": "string"}, "ruleCondition": {"type": "string"}, "routerMode": {"type": "string"}, "sortFieldName": {"type": "string"}, "sortOrder": {"type": "string"}, "limitCount": {"type": "integer"}, "mergeMode": {"type": "string"}, "fileName": {"type": "string"}, "waitForAllInputs": {"type": "boolean"}}, "additionalProperties": True}, "required": ["type"]}}}},
             {"type": "function", "function": {"name": "ConnectNodes", "description": "Connects two nodes together.", "parameters": {"type": "object", "properties": {"fromNode": {"type": "string"}, "toNode": {"type": "string"}}, "required": ["fromNode", "toNode"]}}},
+            {"type": "function", "function": {"name": "RemoveNode", "description": "Removes a node by its ID.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}}},
+            {"type": "function", "function": {"name": "RemoveConnection", "description": "Removes a connection between two nodes.", "parameters": {"type": "object", "properties": {"fromNode": {"type": "string"}, "toNode": {"type": "string"}}, "required": ["fromNode", "toNode"]}}},
             {"type": "function", "function": {"name": "UpdateNode", "description": "Updates a node's configuration.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}, "config": {"type": "object", "additionalProperties": True}}, "required": ["id", "config"]}}},
             {"type": "function", "function": {"name": "GetCurrentGraph", "description": "Returns the current nodes and connections in the workflow.", "parameters": {"type": "object", "properties": {}}}},
             {"type": "function", "function": {"name": "FinishDesign", "description": "Call this when the workflow is fully built and connected.", "parameters": {"type": "object", "properties": {}}}}
@@ -409,8 +420,7 @@ async def run_architect_background(prompt: str, model: str):
 • OUTPUT_DISPLAY: Final node to show results.
 """
         
-        messages = [
-            {"role": "system", "content": f"""You are a master workflow architect. Build workflows step by step using your tools.
+        system_prompt = f"""You are a master workflow architect. Build or edit workflows step by step using your tools.
 
 CRITICAL RULES:
 1. NEVER connect TRIGGER directly to AI_AGENT - use USER_INPUT in between.
@@ -418,11 +428,20 @@ CRITICAL RULES:
 3. AI_AGENT needs `modelId` ("qwen/qwen3.6-35b-a3b"), `systemPrompt`, and `allowedTools`.
 4. Always end with OUTPUT_DISPLAY. Call FinishDesign when done.
 
+You have access to tools to AddNode, UpdateNode, ConnectNodes, and GetCurrentGraph.
+If the user asks to modify the workflow, ALWAYS call GetCurrentGraph first to see the current state before making changes, unless you already know it.
+
 NODE CONFIGURATION:
 {node_descriptions}
-"""},
-            {"role": "user", "content": prompt}
-        ]
+"""
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add history
+        for msg in architect_chat_history:
+            messages.append(msg)
+            
+        # Add new prompt
+        messages.append({"role": "user", "content": prompt})
         
         loop_count = 0
         MAX_LOOPS = 15
@@ -477,6 +496,22 @@ NODE CONFIGURATION:
                     elif name == "ConnectNodes":
                         current_architect_graph["connections"].append({"fromNode": str(args.get("fromNode")), "toNode": str(args.get("toNode"))})
                         result_str = f"Connected {args.get('fromNode')} to {args.get('toNode')}"
+                        architect_state["last_action"] = result_str
+                        LogManager.info("Architect", result_str)
+                        
+                    elif name == "RemoveNode":
+                        node_id = str(args.get("id"))
+                        current_architect_graph["nodes"] = [n for n in current_architect_graph["nodes"] if str(n.get("id")) != node_id]
+                        current_architect_graph["connections"] = [c for c in current_architect_graph["connections"] if str(c.get("fromNode")) != node_id and str(c.get("toNode")) != node_id]
+                        result_str = f"Removed node {node_id} and its connections."
+                        architect_state["last_action"] = result_str
+                        LogManager.info("Architect", result_str)
+
+                    elif name == "RemoveConnection":
+                        from_id = str(args.get("fromNode"))
+                        to_id = str(args.get("toNode"))
+                        current_architect_graph["connections"] = [c for c in current_architect_graph["connections"] if not (str(c.get("fromNode")) == from_id and str(c.get("toNode")) == to_id)]
+                        result_str = f"Removed connection from {from_id} to {to_id}."
                         architect_state["last_action"] = result_str
                         LogManager.info("Architect", result_str)
                         
@@ -574,6 +609,9 @@ NODE CONFIGURATION:
         architect_state["drawflow"] = drawflow_export
         architect_state["last_action"] = "Done!"
         LogManager.info("Architect", "Design complete!")
+        
+        # Save to history
+        architect_chat_history.extend(messages[len(architect_chat_history) + 1:])
         
     except Exception as e:
         LogManager.error("Architect", f"Architect error: {str(e)}")
