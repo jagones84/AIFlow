@@ -14,19 +14,37 @@ class ToolRegistry:
         if cls._mcp_config is not None:
             return cls._mcp_config
             
+        import platform
+        system = platform.system().lower()
+        
+        # Start with default config (Windows-focused)
         config_path = "config/mcp_default.json"
+        merged = {}
+        
         if os.path.exists(config_path):
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
                     all_servers = json.load(f).get("mcpServers", {})
-                    # Only keep enabled servers
-                    active_servers = {k: v for k, v in all_servers.items() if not v.get("disabled", False)}
-                    cls._mcp_config = active_servers
-                    return cls._mcp_config
+                    # Only keep non-disabled servers
+                    for k, v in all_servers.items():
+                        if not v.get("disabled", False):
+                            merged[k] = v
             except Exception as e:
-                print(f"Failed to read local MCP config: {e}")
-                
-        cls._mcp_config = {}
+                print(f"Failed to read MCP config {config_path}: {e}")
+        
+        # Override/extend with platform-specific config (e.g., mcp_linux.json)
+        platform_config_path = f"config/mcp_{system}.json"
+        if os.path.exists(platform_config_path):
+            try:
+                with open(platform_config_path, "r", encoding="utf-8") as f:
+                    platform_servers = json.load(f).get("mcpServers", {})
+                    for k, v in platform_servers.items():
+                        if not v.get("disabled", False):
+                            merged[k] = v
+            except Exception as e:
+                print(f"Failed to read MCP platform config {platform_config_path}: {e}")
+        
+        cls._mcp_config = merged
         return cls._mcp_config
 
     @classmethod

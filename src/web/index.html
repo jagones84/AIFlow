@@ -489,45 +489,48 @@
         function zoomIn() { editor.zoom_in(); }
         function zoomOut() { editor.zoom_out(); }
         function fitToWindow() {
-            const drawflow = document.querySelector('#drawflow');
-            const canvas = drawflow.querySelector('.drawflow') || drawflow;
-            if (!canvas || !canvas.children.length) return;
+            const drawflowEl = document.getElementById('drawflow');
+            const canvasEl = drawflowEl.querySelector('.drawflow') || drawflowEl;
             
-            // Find bounding box of all nodes
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            const nodes = canvas.querySelectorAll('.node');
-            if (!nodes.length) return;
-            
-            nodes.forEach(node => {
-                const rect = node.getBoundingClientRect();
-                minX = Math.min(minX, rect.left);
-                minY = Math.min(minY, rect.top);
-                maxX = Math.max(maxX, rect.right);
-                maxY = Math.max(maxY, rect.bottom);
-            });
-            
-            const containerWidth = drawflow.clientWidth - 40;
-            const containerHeight = drawflow.clientHeight - 40;
-            const contentWidth = maxX - minX;
-            const contentHeight = maxY - minY;
-            
-            const scaleX = containerWidth / contentWidth;
-            const scaleY = containerHeight / contentHeight;
-            const scale = Math.min(scaleX, scaleY, 1) * 0.9;
-            
-            const zoom = Math.max(-0.5, Math.min(scale - 1, 0.5));
-            editor.changeZoom(zoom);
-            
-            // Center view
-            const centerX = (minX + maxX) / 2;
-            const centerY = (minY + maxY) / 2;
-            const containerRect = drawflow.getBoundingClientRect();
-            const offsetX = containerRect.width / 2 - centerX;
-            const offsetY = containerRect.height / 2 - centerY;
-            canvas.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${1 + zoom})`;
+            if (typeof editor.precanvas !== 'undefined' && editor.precanvas) {
+                const nodes = Object.values(editor.drawflow.Home.data);
+                if (nodes.length === 0) return;
+                
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                nodes.forEach(n => {
+                    minX = Math.min(minX, n.pos_x);
+                    minY = Math.min(minY, n.pos_y);
+                    maxX = Math.max(maxX, n.pos_x + 220);
+                    maxY = Math.max(maxY, n.pos_y + 80);
+                });
+                
+                const containerW = drawflowEl.clientWidth - 80;
+                const containerH = drawflowEl.clientHeight - 80;
+                const contentW = maxX - minX || 1;
+                const contentH = maxY - minY || 1;
+                
+                const scaleX = containerW / contentW;
+                const scaleY = containerH / contentH;
+                const scale = Math.min(scaleX, scaleY, 1) * 0.85;
+                
+                const zoomLevel = scale - 1;
+                editor.changeZoom(zoomLevel);
+                
+                const centerX = (minX + maxX) / 2;
+                const centerY = (minY + maxY) / 2;
+                const canvasW = canvasEl.clientWidth || drawflowEl.clientWidth;
+                const canvasH = canvasEl.clientHeight || drawflowEl.clientHeight;
+                const offsetX = canvasW / 2 - centerX * (1 + zoomLevel);
+                const offsetY = canvasH / 2 - centerY * (1 + zoomLevel);
+                
+                editor.precanvas.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${1 + zoomLevel})`;
+            }
         }
         function resetView() {
             editor.zoom_reset();
+            if (editor.precanvas) {
+                editor.precanvas.style.transform = '';
+            }
         }
         var id = document.getElementById("drawflow");
         const editor = new Drawflow(id);
@@ -772,9 +775,9 @@
             if (res) {
                 ioPanel.innerHTML = `
                     <h5 style="margin:0 0 5px 0;">Last Input</h5>
-                    <pre style="font-size:10px; max-height:100px; overflow:auto; background:#eee; padding:5px; margin:0 0 10px 0;">${JSON.stringify(res.lastInputItems, null, 2)}</pre>
+                    <pre style="font-size:10px; max-height:100px; overflow:auto; background:#eee; padding:5px; margin:0 0 10px 0; white-space:pre-wrap; word-wrap:break-word; word-break:break-all;">${JSON.stringify(res.lastInputItems, null, 2)}</pre>
                     <h5 style="margin:0 0 5px 0;">Last Output</h5>
-                    <pre style="font-size:10px; max-height:100px; overflow:auto; background:#eee; padding:5px; margin:0;">${JSON.stringify(res.lastOutputItems, null, 2)}</pre>
+                    <pre style="font-size:10px; max-height:100px; overflow:auto; background:#eee; padding:5px; margin:0; white-space:pre-wrap; word-wrap:break-word; word-break:break-all;">${JSON.stringify(res.lastOutputItems, null, 2)}</pre>
                 `;
             } else {
                 ioPanel.innerHTML = '<em style="font-size:11px; color:#7f8c8d;">No execution data yet. Run the workflow first.</em>';
@@ -1109,7 +1112,7 @@
             }
         }
 
-        const ARCHITECT_WELCOME = "search for latest soccer match result in Italy";
+        const ARCHITECT_WELCOME = "Design a comprehensive test workflow that exercises all available node types: TRIGGER → PROMPT_INPUT → AI_AGENT (with mcp__Brave Search and mcp__Fetch) → ROUTER (with conditional branches) → MERGE (combining paths) → OUTPUT_DISPLAY. Include a LOOP_OVER_ITEMS node, a VARIABLE_STORE node, and verify that each node correctly passes input/output to the next. The AI_AGENT should use the default model qwen/qwen3.6-35b-a3b.";
 
         const ARCHITECT_INITIAL_MESSAGE = `<div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start;">Hi! I'm the Architect. Tell me a question or task, and I'll design a workflow to answer it.</div><div style="background: #f4ecf7; padding: 8px; border-radius: 4px; align-self: flex-start; margin-top: 5px; font-size: 13px; color: #555;">Example: ${ARCHITECT_WELCOME}</div>`;
 

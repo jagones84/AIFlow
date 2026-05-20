@@ -1,0 +1,18 @@
+{
+	"mcpServers": {
+		"python-local": {
+			"command": "python",
+			"args": ["-m", "src.mcp_servers.python_local_server"],
+			"env": {},
+			"description": "Execute Python code locally. Provides a run_python tool.",
+			"disabled": false
+		},
+		"filesystem": {
+			"command": "uvx",
+			"args": ["@modelcontextprotocol/server-filesystem", "/workspace"],
+			"env": {},
+			"description": "File system operations",
+			"disabled": false
+		}
+	}
+}
