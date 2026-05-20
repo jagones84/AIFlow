@@ -152,7 +152,7 @@ class NodeExecutor:
                     body = evaluator.evaluate(node.httpBody) if node.httpBody else None
                     
                     try:
-                        resp = requests.request(node.httpMethod, url_str, headers=headers, data=body, timeout=30)
+                        resp = requests.request(node.httpMethod, url_str, headers=headers, data=body, timeout=30, verify=False)
                         output = resp.text
                         success = resp.ok
                         parsed = self._parse_legacy_string_to_items(output)

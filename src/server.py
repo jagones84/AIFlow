@@ -71,9 +71,19 @@ async def get_status():
             "running_nodes": [n.id for n in nodes if n.status.value == "RUNNING"],
             "waiting_nodes": waiting_nodes,
             "last_ai_message": last_ai_message,
-            "logs": logs
+            "logs": logs,
+            "node_states": [
+                {
+                    "id": n.id,
+                    "status": n.status.value,
+                    "type": n.type.value,
+                    "lastOutput": n.lastOutput[:200] if n.lastOutput else None,
+                    "lastInput": n.lastInput[:200] if n.lastInput else None
+                }
+                for n in nodes
+            ]
         }
-    return {"running_nodes": [], "waiting_nodes": [], "last_ai_message": "", "logs": logs}
+    return {"running_nodes": [], "waiting_nodes": [], "last_ai_message": "", "logs": logs, "node_states": []}
 
 class ResumeRequest(BaseModel):
     node_id: str

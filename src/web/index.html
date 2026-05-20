@@ -390,14 +390,14 @@
     </div>
 
     <!-- Architect Chat Panel -->
-    <div id="architect-chat-panel" style="display: none; position: fixed; top: 70px; right: 20px; width: 350px; height: 500px; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000; flex-direction: column;">
+    <div id="architect-chat-panel" style="display: none; position: fixed; top: 70px; right: 20px; width: 420px; height: 500px; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000; flex-direction: column;">
         <div id="architect-chat-header" style="background: #8e44ad; color: white; padding: 10px; border-radius: 8px 8px 0 0; font-weight: bold; display: flex; justify-content: space-between; cursor: move;">
             <span>🪄 Architect</span>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span id="architect-running-indicator" style="display: none; color: #f1c40f; animation: blink 1s infinite;">⚙️</span>
             <div style="display: flex; gap: 5px; align-items: center;">
-                <input type="text" id="architect-model-select" value="qwen/qwen3.6-35b-a3b" style="font-size: 11px; padding: 2px 5px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.9); color: #333; width: 130px;" placeholder="Model ID" title="Enter OpenRouter model ID" />
-                <a href="https://openrouter.ai/models" target="_blank" title="Browse OpenRouter Models" style="color: white; text-decoration: none; font-size: 14px; pointer-events: auto;">ℹ️</a>
+                <input type="text" id="architect-model-select" value="qwen/qwen3.6-35b-a3b" style="font-size: 11px; padding: 2px 5px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.9); color: #333; width: 150px;" placeholder="Model ID" title="Enter OpenRouter model ID" />
+                <span onclick="window.open('https://openrouter.ai/models', '_blank')" title="Browse OpenRouter Models" style="color: white; cursor: pointer; font-size: 14px; pointer-events: auto;">ℹ️</span>
             </div>
                 <span id="architect-stop-btn" style="display: none; cursor:pointer; color: #e74c3c;" onclick="stopArchitect()" title="Stop Architect">🛑</span>
                 <span style="cursor:pointer;" onclick="clearArchitectMemory()" title="Clear Memory">🗑️</span>
@@ -1102,7 +1102,7 @@
             }
         }
 
-        const ARCHITECT_WELCOME = "Design a comprehensive test workflow that uses the most advanced nodes available. Create an AI_AGENT with access to tools, include a feedback loop with the user (PROMPT_INPUT), and use various logic nodes (like ROUTER, LOOP, MERGE) to thoroughly test the engine's capabilities.";
+        const ARCHITECT_WELCOME = "Design a comprehensive test workflow that uses the most advanced nodes available. Create an AI_AGENT with access to tools (mcp__Brave Search for web search, mcp__Fetch for URL fetching), include a feedback loop with the user (PROMPT_INPUT), and use various logic nodes (like ROUTER, LOOP, MERGE) to thoroughly test the engine's capabilities.";
 
         const ARCHITECT_INITIAL_MESSAGE = `<div style="background: #e8daef; padding: 8px; border-radius: 4px; align-self: flex-start;">Hi! I'm the Architect. Type your request below, or I'll start building a comprehensive test workflow for you.</div><div style="background: #f4ecf7; padding: 8px; border-radius: 4px; align-self: flex-start; margin-top: 5px; font-size: 13px; color: #555;">Example: ${ARCHITECT_WELCOME}</div>`;
 
@@ -1251,6 +1251,34 @@
                 const res = await fetch('/api/status');
                 if (res.ok) {
                     const data = await res.json();
+                    
+                    // Update node visuals based on status
+                    if (data.node_states && data.node_states.length > 0) {
+                        data.node_states.forEach(nodeState => {
+                            const nodeElement = document.getElementById('node-' + nodeState.id);
+                            if (nodeElement) {
+                                const titleBox = nodeElement.querySelector('.title-box');
+                                if (titleBox) {
+                                    // Reset to default
+                                    titleBox.style.opacity = '1';
+                                    titleBox.style.border = '';
+                                    
+                                    // Apply status-based styling
+                                    if (nodeState.status === 'RUNNING') {
+                                        titleBox.style.border = '2px solid #f1c40f';
+                                        titleBox.style.animation = 'pulse 0.5s infinite';
+                                    } else if (nodeState.status === 'SUCCESS') {
+                                        titleBox.style.border = '2px solid #2ecc71';
+                                    } else if (nodeState.status === 'FAILURE') {
+                                        titleBox.style.border = '2px solid #e74c3c';
+                                    } else if (nodeState.status === 'WAITING_FOR_USER') {
+                                        titleBox.style.border = '2px solid #3498db';
+                                        titleBox.style.animation = 'blink 1s infinite';
+                                    }
+                                }
+                            }
+                        });
+                    }
                     
                     // Update Logs
                     if (data.logs && data.logs.length > 0) {
