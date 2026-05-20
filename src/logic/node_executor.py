@@ -195,9 +195,10 @@ class NodeExecutor:
                     wrapped_code += f"    {line}\n"
                 wrapped_code += "\nresult = __user_code__()"
                 
-                local_vars = {"input": input_items, "context": node.context}
+                local_vars = {"items": input_items, "input": input_items, "context": node.context}
+                global_vars = {"items": input_items, "input": input_items, "context": node.context}
                 try:
-                    exec(wrapped_code, {}, local_vars)
+                    exec(wrapped_code, global_vars, local_vars)
                     output_items = local_vars.get("result", [])
                     if not isinstance(output_items, list):
                         output_items = [self._wrap_text_item(str(output_items))]
