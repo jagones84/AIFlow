@@ -972,10 +972,6 @@
                     body: JSON.stringify({prompt: promptStr, model: modelStr})
                 });
                 const text = await res.text();
-                if (!text || text.trim() === "") {
-                    alert("Error: Empty response from server. Check server logs.");
-                    return;
-                }
                 let data;
                 try {
                     data = JSON.parse(text);
@@ -983,12 +979,51 @@
                     alert("Error: Invalid JSON response: " + text.substring(0, 200));
                     return;
                 }
-                if(data.status === 'success' && data.drawflow) {
-                    editor.import(data.drawflow);
-                    alert("Workflow generated successfully!");
-                } else {
-                    alert("Failed to generate workflow: " + (data.message || "Unknown error"));
+                
+                if(data.status === 'error') {
+                    alert("Failed to start Architect: " + (data.message || "Unknown error"));
+                    clearInterval(pollInterval);
+                    if (overlay) overlay.style.display = 'none';
+                    return;
                 }
+                
+                // Architect started - poll for results
+                let pollCount = 0;
+                const maxPolls = 300; // 5 minutes max
+                
+                while (pollCount < maxPolls) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    
+                    try {
+                        const resultsRes = await fetch('/api/architect/results');
+                        const resultsText = await resultsRes.text();
+                        const results = JSON.parse(resultsText);
+                        
+                        // Update overlay status
+                        const overlayStatus = document.getElementById('architect-overlay-status');
+                        if (overlayStatus) overlayStatus.innerText = results.last_action || "Thinking...";
+                        
+                        if (!results.running && results.finished) {
+                            if (results.error) {
+                                alert("Architect error: " + results.error);
+                            } else if (results.drawflow) {
+                                editor.import(results.drawflow);
+                                alert("Workflow generated successfully!");
+                            } else {
+                                alert("Architect finished but no workflow was generated.");
+                            }
+                            break;
+                        }
+                    } catch(e) {
+                        console.log("Poll error:", e);
+                    }
+                    pollCount++;
+                }
+                
+                if (pollCount >= maxPolls) {
+                    alert("Architect timed out after 5 minutes.");
+                }
+                
             } catch(e) {
                 alert("Error connecting to Architect: " + e.message || String(e));
             } finally {

@@ -22,6 +22,16 @@ app = FastAPI(title="AI Flow Engine API")
 # Global reference to current running flow
 current_flow_app = None
 
+# Global state for Architect non-blocking execution
+architect_state = {
+    "running": False,
+    "finished": False,
+    "result": None,
+    "error": None,
+    "drawflow": None,
+    "last_action": "Initializing..."
+}
+
 @app.get("/api/status")
 async def get_status():
     global current_flow_app
@@ -333,357 +343,188 @@ class ArchitectRequest(BaseModel):
 
 @app.post("/api/architect")
 async def architect(req: ArchitectRequest):
-    global current_architect_graph
+    global architect_state, current_architect_graph
+    
+    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+    
+    if not api_key:
+        return {"status": "error", "message": "No API key found for Architect (requires OPENROUTER_API_KEY)."}
     
     # Initialize the graph with the current UI state if provided
     if req.currentGraph:
         current_architect_graph = req.currentGraph
     else:
         current_architect_graph = {"nodes": [], "connections": []}
-        
-    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
     
-    if not api_key:
-        return {"status": "error", "message": "No API key found for Architect (requires OPENROUTER_API_KEY)."}
-        
+    # Reset architect state and return immediately
+    architect_state = {
+        "running": True,
+        "finished": False,
+        "result": None,
+        "error": None,
+        "drawflow": None,
+        "last_action": "Starting..."
+    }
+    
+    # Start architect in background
+    asyncio.create_task(run_architect_background(req.prompt, req.model))
+    
+    return {"status": "running", "message": "Architect started"}
+
+async def run_architect_background(prompt: str, model: str):
+    """Run architect in background to avoid proxy timeouts."""
+    global architect_state, current_architect_graph
+    import traceback
+    import json
+    from openai import OpenAI
+    from src.utils.managers import LogManager
+    
     try:
-        from openai import OpenAI
-        
-        base_url = "https://api.openai.com/v1"
-        if "openrouter" in req.model.lower() or "/" in req.model:
-            base_url = "https://openrouter.ai/api/v1"
-            api_key = os.getenv("OPENROUTER_API_KEY")
-            
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        base_url = "https://openrouter.ai/api/v1"
         client = OpenAI(base_url=base_url, api_key=api_key, timeout=45.0)
         
-        # We use OpenAI function calling / structured output to get a strict JSON graph back
         tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "AddNode",
-                    "description": "Adds a new node to the workflow.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "id": {"type": "string", "description": "Unique ID for the node"},
-                            "type": {"type": "string", "enum": ["TRIGGER", "AI_AGENT", "TOOL_EXECUTION", "ROUTER", "SWITCH", "USER_INPUT", "KNOWLEDGE", "JSON_PARSER", "JSON_FIELD_EXTRACT", "MERGE", "LOOP_OVER_ITEMS", "VARIABLE_STORE", "FILE_SAVE", "STOP_AND_ERROR", "HTTP_REQUEST", "WAIT", "CODE", "SET", "FILTER", "SORT", "LIMIT", "AGGREGATE", "REMOVE_DUPLICATES", "SPLIT_OUT", "SUMMARIZE", "OUTPUT_DISPLAY"]},
-                            "title": {"type": "string", "description": "Display title"},
-                            "x": {"type": "integer", "description": "X coordinate (e.g. 100, 400, 700)"},
-                            "y": {"type": "integer", "description": "Y coordinate (e.g. 200, 300)"},
-                            "config": {
-                                "type": "object", 
-                                "description": "Configuration properties for the node.",
-                                "properties": {
-                                    "userInstruction": {"type": "string", "description": "Text prompt for USER_INPUT"},
-                                    "isInteractive": {"type": "boolean", "description": "Wait for user (true/false)"},
-                                    "modelId": {"type": "string", "description": "AI model (e.g. qwen/qwen3.6-35b-a3b)"},
-                                    "systemPrompt": {"type": "string", "description": "AI system prompt"},
-                                    "allowedTools": {"type": "array", "items": {"type": "string"}, "description": "Tools for AI (e.g. fetch_url, mcp__Brave Search)"},
-                                    "selectedToolName": {"type": "string", "description": "Tool name for TOOL_EXECUTION"},
-                                    "httpUrl": {"type": "string", "description": "URL for HTTP_REQUEST"},
-                                    "httpMethod": {"type": "string", "description": "GET, POST, etc."},
-                                    "ruleCondition": {"type": "string", "description": "Condition for ROUTER or FILTER"},
-                                    "routerMode": {"type": "string", "description": "SIMPLE_RULE or AI_LLM"},
-                                    "sortFieldName": {"type": "string"},
-                                    "sortOrder": {"type": "string"},
-                                    "limitCount": {"type": "integer"},
-                                    "mergeMode": {"type": "string"},
-                                    "fileName": {"type": "string"},
-                                    "waitForAllInputs": {"type": "boolean"}
-                                },
-                                "additionalProperties": True
-                            }
-                        },
-                        "required": ["type"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "ConnectNodes",
-                    "description": "Connects two nodes together.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "fromNode": {"type": "string", "description": "Source node ID"},
-                            "toNode": {"type": "string", "description": "Target node ID"}
-                        },
-                        "required": ["fromNode", "toNode"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "UpdateNode",
-                    "description": "Updates a node's configuration.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "id": {"type": "string", "description": "Node ID to update"},
-                            "config": {
-                                "type": "object", 
-                                "description": "New configuration properties to update.",
-                                "properties": {
-                                    "userInstruction": {"type": "string", "description": "Text prompt for USER_INPUT"},
-                                    "isInteractive": {"type": "boolean", "description": "Wait for user (true/false)"},
-                                    "modelId": {"type": "string", "description": "AI model (e.g. qwen/qwen3.6-35b-a3b)"},
-                                    "systemPrompt": {"type": "string", "description": "AI system prompt"},
-                                    "allowedTools": {"type": "array", "items": {"type": "string"}, "description": "Tools for AI (e.g. fetch_url, mcp__Brave Search)"},
-                                    "selectedToolName": {"type": "string", "description": "Tool name for TOOL_EXECUTION"},
-                                    "httpUrl": {"type": "string", "description": "URL for HTTP_REQUEST"},
-                                    "httpMethod": {"type": "string", "description": "GET, POST, etc."},
-                                    "ruleCondition": {"type": "string", "description": "Condition for ROUTER or FILTER"},
-                                    "routerMode": {"type": "string", "description": "SIMPLE_RULE or AI_LLM"},
-                                    "sortFieldName": {"type": "string"},
-                                    "sortOrder": {"type": "string"},
-                                    "limitCount": {"type": "integer"},
-                                    "mergeMode": {"type": "string"},
-                                    "fileName": {"type": "string"},
-                                    "waitForAllInputs": {"type": "boolean"}
-                                },
-                                "additionalProperties": True
-                            }
-                        },
-                        "required": ["id", "config"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "GetCurrentGraph",
-                    "description": "Returns the current nodes and connections in the workflow.",
-                    "parameters": {"type": "object", "properties": {}}
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "FinishDesign",
-                    "description": "Call this when the workflow is fully built and connected.",
-                    "parameters": {"type": "object", "properties": {}}
-                }
-            }
+            {"type": "function", "function": {"name": "AddNode", "description": "Adds a new node to the workflow.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}, "type": {"type": "string", "enum": ["TRIGGER", "AI_AGENT", "TOOL_EXECUTION", "ROUTER", "SWITCH", "USER_INPUT", "KNOWLEDGE", "JSON_PARSER", "JSON_FIELD_EXTRACT", "MERGE", "LOOP_OVER_ITEMS", "VARIABLE_STORE", "FILE_SAVE", "STOP_AND_ERROR", "HTTP_REQUEST", "WAIT", "CODE", "SET", "FILTER", "SORT", "LIMIT", "AGGREGATE", "REMOVE_DUPLICATES", "SPLIT_OUT", "SUMMARIZE", "OUTPUT_DISPLAY"]}, "title": {"type": "string"}, "x": {"type": "integer"}, "y": {"type": "integer"}, "config": {"type": "object", "properties": {"userInstruction": {"type": "string"}, "isInteractive": {"type": "boolean"}, "modelId": {"type": "string"}, "systemPrompt": {"type": "string"}, "allowedTools": {"type": "array", "items": {"type": "string"}}, "selectedToolName": {"type": "string"}, "httpUrl": {"type": "string"}, "httpMethod": {"type": "string"}, "ruleCondition": {"type": "string"}, "routerMode": {"type": "string"}, "sortFieldName": {"type": "string"}, "sortOrder": {"type": "string"}, "limitCount": {"type": "integer"}, "mergeMode": {"type": "string"}, "fileName": {"type": "string"}, "waitForAllInputs": {"type": "boolean"}}, "additionalProperties": True}, "required": ["type"]}}}},
+            {"type": "function", "function": {"name": "ConnectNodes", "description": "Connects two nodes together.", "parameters": {"type": "object", "properties": {"fromNode": {"type": "string"}, "toNode": {"type": "string"}}, "required": ["fromNode", "toNode"]}}},
+            {"type": "function", "function": {"name": "UpdateNode", "description": "Updates a node's configuration.", "parameters": {"type": "object", "properties": {"id": {"type": "string"}, "config": {"type": "object", "additionalProperties": True}}, "required": ["id", "config"]}}},
+            {"type": "function", "function": {"name": "GetCurrentGraph", "description": "Returns the current nodes and connections in the workflow.", "parameters": {"type": "object", "properties": {}}}},
+            {"type": "function", "function": {"name": "FinishDesign", "description": "Call this when the workflow is fully built and connected.", "parameters": {"type": "object", "properties": {}}}}
         ]
         
-        target_model = req.model
-        if base_url == "https://openrouter.ai/api/v1" and not target_model.startswith("openrouter/") and "/" not in target_model:
+        target_model = model
+        if not target_model.startswith("openrouter/") and "/" not in target_model:
             target_model = f"openrouter/{target_model}"
-            
+        
         node_descriptions = """
 • TRIGGER: Starts workflow. `triggerType` (MANUAL, SCHEDULE, WEBHOOK).
 • USER_INPUT: Prompts user or injects text. `userInstruction` (the prompt text), `isInteractive` (boolean).
 • AI_AGENT: Uses LLM. `modelId` (qwen/qwen3.6-35b-a3b), `systemPrompt`, `allowedTools` (List of tool names).
 • TOOL_EXECUTION: Runs a tool. `selectedToolName`.
 • ROUTER: Splits flow. `routerMode` (AI_LLM, SIMPLE_RULE), `ruleCondition`.
-• HTTP_REQUEST: Makes API calls. `httpUrl`, `httpMethod` (GET, POST), `httpHeaders`, `httpBody`.
-• SET: Adds/modifies fields. `setFields` (List of objects: {"name": "key", "value": "val", "type": "string"}).
-• FILTER: Removes items. `ruleCondition` (e.g. expr:{{ $json.id }} == 1).
-• SORT: Sorts items. `sortFieldName`, `sortOrder` (asc/desc), `sortType`.
-• LIMIT: Limits items. `limitCount`, `limitOffset`.
-• AGGREGATE: Combines items. `aggregateMode`, `aggregateOutputField`.
-• SPLIT_OUT: Splits array into items. `splitOutField`.
-• REMOVE_DUPLICATES: Dedupes. `dedupeFields` (List of strings), `dedupeCompareAllFields` (bool).
-• MERGE: Combines branches. `mergeMode` (APPEND, WAIT, CHOOSE_BRANCH, COMBINE_BY_POSITION, MULTIPLEX).
-• VARIABLE_STORE: Saves/Reads variables. `variableKey`, `variableOperation` (READ, WRITE, APPEND).
-• FILE_SAVE: Saves output. `fileName`.
-• STOP_AND_ERROR: Stops flow. `errorMessage`.
-• CODE: Runs Python. `codeBody` (string with Python code).
-• SUMMARIZE: Summarizes items. `summarizeFields`, `summarizeOutputFormat`.
+• HTTP_REQUEST: Makes API calls. `httpUrl`, `httpMethod` (GET, POST).
+• SET: Adds/modifies fields. `setFields`.
+• MERGE: Combines branches. `mergeMode` (APPEND, WAIT, CHOOSE_BRANCH).
+• CODE: Runs Python. `codeBody`.
 • OUTPUT_DISPLAY: Final node to show results.
-
-COMMON FIELDS (Applicable to ALL nodes):
-- `waitForAllInputs`: (boolean) If true, the node waits for all incoming connections to provide at least one item before executing.
-- `continueOnError`: (boolean) If true, the flow continues even if this node fails.
-- `maxIterations`: (integer) Max times this node can execute in a loop.
 """
-
+        
         messages = [
-            {
-                "role": "system",
-                "content": f"""You are a master workflow architect for an n8n-like system. Build the user's requested workflow step by step using your tools (AddNode, ConnectNodes, UpdateNode).
+            {"role": "system", "content": f"""You are a master workflow architect. Build workflows step by step using your tools.
 
-CRITICAL: FLOW STRUCTURE PRINCIPLES
-1. NEVER connect TRIGGER directly to AI_AGENT for user queries.
-   - WRONG: Trigger -> AI Agent
-   - RIGHT: Trigger -> User Input -> AI Agent
-2. USER_INPUT node usage:
-   - Use `userInstruction` for the text content (prompt or message).
-   - Set `isInteractive: false` (DEFAULT) if the text should be injected automatically.
-   - Set `isInteractive: true` ONLY if the workflow must stop and wait for a human to type something in the UI.
-3. AI_AGENT MUST have `modelId` (DEFAULT: "qwen/qwen3.6-35b-a3b"), `systemPrompt`, and crucially `allowedTools` (e.g. ["fetch_url", "mcp__Brave Search", "mcp__Multi-Fetch"]) if it needs to search. Do NOT use "gpt-4o-mini" unless explicitly requested.
-4. EVERY node must be updated with appropriate config fields. Use the EXACT field names from the reference below.
-5. You can set `waitForAllInputs: true` on a MERGE node if it needs to wait for multiple branches.
-6. Always end with an OUTPUT_DISPLAY node.
-7. When the graph is complete, call FinishDesign immediately.
+CRITICAL RULES:
+1. NEVER connect TRIGGER directly to AI_AGENT - use USER_INPUT in between.
+2. USER_INPUT: use `userInstruction` for text, `isInteractive` (true only for human pauses).
+3. AI_AGENT needs `modelId` ("qwen/qwen3.6-35b-a3b"), `systemPrompt`, and `allowedTools`.
+4. Always end with OUTPUT_DISPLAY. Call FinishDesign when done.
 
-NODE CONFIGURATION REFERENCE (EXACT FIELD NAMES):
+NODE CONFIGURATION:
 {node_descriptions}
-"""
-            },
-            {"role": "user", "content": req.prompt}
+"""},
+            {"role": "user", "content": prompt}
         ]
         
         loop_count = 0
-        MAX_LOOPS = 20
+        MAX_LOOPS = 15
         
         while loop_count < MAX_LOOPS:
             try:
                 loop_count += 1
+                architect_state["last_action"] = f"Thinking (Loop {loop_count}/{MAX_LOOPS})..."
                 LogManager.info("Architect", f"Loop {loop_count} starting...")
-                current_architect_graph["last_action"] = f"Thinking (Loop {loop_count})..."
                 
-                resp = client.chat.completions.create(
-                    model=target_model,
-                    messages=messages,
-                    tools=tools
-                )
-                
+                resp = client.chat.completions.create(model=target_model, messages=messages, tools=tools)
                 message = resp.choices[0].message
                 
                 if not message.tool_calls:
-                    LogManager.info("Architect", f"No tool calls, AI said: {message.content}")
-                    current_architect_graph["last_action"] = "Analyzing feedback..."
-                    # If no tool calls, it might just be chatting. Try to prompt it to finish or continue.
+                    architect_state["last_action"] = "Analyzing feedback..."
                     messages.append({"role": "assistant", "content": message.content or ""})
                     messages.append({"role": "user", "content": "Please continue building or call FinishDesign if you are done."})
                     continue
-                    
-                # Add assistant message with tool calls
-                clean_msg = {
-                    "role": "assistant",
-                    "content": message.content or "",
-                    "tool_calls": message.model_dump(exclude_unset=True).get("tool_calls")
-                }
+                
+                clean_msg = {"role": "assistant", "content": message.content or "", "tool_calls": message.model_dump(exclude_unset=True).get("tool_calls")}
                 messages.append(clean_msg)
                 
                 finished = False
                 
-                tool_names = [tc.function.name for tc in message.tool_calls]
-                LogManager.info("Architect", f"AI decided to call tools: {tool_names}")
-                
                 for tool_call in message.tool_calls:
                     name = tool_call.function.name
-                    import json
-                    LogManager.info("Architect", f"Raw tool call arguments: {tool_call.function.arguments}")
                     try:
                         args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
                     except:
                         args = {}
-                        
+                    
                     result_str = ""
                     
                     if name == "AddNode":
-                        # Generate new max ID if not provided
                         node_id = args.get("id")
                         if not node_id:
                             existing_ids = [int(n.get("id", 0)) for n in current_architect_graph["nodes"] if str(n.get("id")).isdigit()]
                             node_id = str(max(existing_ids + [0]) + 1)
                         
                         config = args.get("config", {})
-                        # Normalize boolean fields
                         for bool_field in ["isInteractive", "waitForAllInputs", "continueOnError"]:
-                            if bool_field in config:
-                                if isinstance(config[bool_field], str):
-                                    config[bool_field] = config[bool_field].lower() == "true"
+                            if bool_field in config and isinstance(config[bool_field], str):
+                                config[bool_field] = config[bool_field].lower() == "true"
                         
-                        new_node = {
-                            "id": node_id,
-                            "type": args.get("type", "CODE"),
-                            "title": args.get("title", args.get("type", "CODE")),
-                            "pos_x": args.get("x", 100),
-                            "pos_y": args.get("y", 100),
-                            "config": config
-                        }
-                        # Sync to top-level immediately
+                        new_node = {"id": node_id, "type": args.get("type", "CODE"), "title": args.get("title", args.get("type", "CODE")), "pos_x": args.get("x", 100), "pos_y": args.get("y", 100), "config": config}
                         new_node.update(config)
-                        
                         current_architect_graph["nodes"].append(new_node)
                         result_str = f"Added node {node_id}"
-                        current_architect_graph["last_action"] = f"Added Node: {new_node['type']}"
+                        architect_state["last_action"] = f"Added: {new_node['type']}"
                         LogManager.info("Architect", result_str)
                         
                     elif name == "ConnectNodes":
-                        current_architect_graph["connections"].append({
-                            "fromNode": str(args.get("fromNode")),
-                            "toNode": str(args.get("toNode"))
-                        })
+                        current_architect_graph["connections"].append({"fromNode": str(args.get("fromNode")), "toNode": str(args.get("toNode"))})
                         result_str = f"Connected {args.get('fromNode')} to {args.get('toNode')}"
-                        current_architect_graph["last_action"] = result_str
+                        architect_state["last_action"] = result_str
                         LogManager.info("Architect", result_str)
                         
                     elif name == "UpdateNode":
                         node_id = str(args.get("id"))
-                        updated = False
                         config = args.get("config", {})
-                        
-                        # Normalize boolean fields
                         for bool_field in ["isInteractive", "waitForAllInputs", "continueOnError"]:
-                            if bool_field in config:
-                                if isinstance(config[bool_field], str):
-                                    config[bool_field] = config[bool_field].lower() == "true"
-                                    
+                            if bool_field in config and isinstance(config[bool_field], str):
+                                config[bool_field] = config[bool_field].lower() == "true"
+                        
                         for n in current_architect_graph["nodes"]:
                             if str(n.get("id")) == node_id:
                                 if "config" not in n:
                                     n["config"] = {}
-                                
-                                # Check if the AI is trying to update with the exact same config it already has
-                                # to prevent infinite loops
-                                import copy
-                                old_config_str = json.dumps(n["config"], sort_keys=True)
-                                
                                 n["config"].update(config)
-                                # CRITICAL: Also update top-level node data for backend compatibility
                                 n.update(config)
-                                if "title" in args:
-                                    n["title"] = args["title"]
-                                    
-                                new_config_str = json.dumps(n["config"], sort_keys=True)
-                                
-                                if old_config_str == new_config_str and "title" not in args:
-                                    result_str = f"Warning: You just updated node {node_id} with the exact same configuration it already had. Do not repeat this action. Call FinishDesign if you are done."
-                                else:
-                                    result_str = f"Updated node {node_id} successfully."
-                                    
-                                updated = True
-                                
-                        if not updated:
-                            result_str = f"Error: Node {node_id} not found."
+                                result_str = f"Updated node {node_id}"
+                                architect_state["last_action"] = f"Updated: {node_id}"
+                                LogManager.info("Architect", result_str)
+                                break
+                        else:
+                            result_str = f"Node {node_id} not found"
                             
-                        current_architect_graph["last_action"] = f"Updated node {node_id}"
-                        LogManager.info("Architect", result_str)
-                        
                     elif name == "GetCurrentGraph":
                         result_str = json.dumps(current_architect_graph)
-                        current_architect_graph["last_action"] = "Inspecting current graph state..."
-                        LogManager.info("Architect", "GetCurrentGraph called")
+                        architect_state["last_action"] = "Inspecting graph..."
                         
                     elif name == "FinishDesign":
                         finished = True
-                        result_str = "Design marked as finished."
-                        current_architect_graph["last_action"] = "Finished designing workflow."
+                        result_str = "Design finished."
+                        architect_state["last_action"] = "Finished!"
                         LogManager.info("Architect", "FinishDesign called")
-                        
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": result_str,
-                        "name": name
-                    })
                     
+                    messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result_str, "name": name})
+                
                 if finished:
                     break
+                    
+                await asyncio.sleep(1)
+                
             except Exception as te:
-                LogManager.error("Architect", f"OpenAI API Error: {str(te)}")
-                return {"status": "error", "message": f"OpenRouter API Error: {str(te)}"}
+                LogManager.error("Architect", f"Error: {str(te)}")
+                architect_state["error"] = str(te)
+                architect_state["running"] = False
+                return
         
-        # Now convert current_architect_graph to Drawflow export
+        # Convert to Drawflow format
         df_data = {}
-        # Ensure we have a valid numeric ID mapping for Drawflow
         id_map = {}
         numeric_id_counter = 1
         
@@ -695,7 +536,7 @@ NODE CONFIGURATION REFERENCE (EXACT FIELD NAMES):
             else:
                 id_map[old_id] = old_id
                 numeric_id_counter = max(numeric_id_counter, int(old_id) + 1)
-                
+        
         for n in current_architect_graph["nodes"]:
             old_id = str(n["id"])
             nid = id_map[old_id]
@@ -703,56 +544,48 @@ NODE CONFIGURATION REFERENCE (EXACT FIELD NAMES):
             html_content = f"<div class='title-box'>{ntype}</div><div class='box'>Auto-generated</div>"
             config_data = n.get("config", {})
             node_data_obj = {"type": ntype, "config": config_data}
-            node_data_obj.update(config_data) # Sync fields to top-level of data for UI completeness
+            node_data_obj.update(config_data)
             
             df_data[nid] = {
-                "id": int(nid),
-                "name": ntype,
-                "data": node_data_obj,
-                "class": ntype.lower(),
-                "html": html_content,
-                "typenode": False,
-                "inputs": {},
-                "outputs": {},
-                "pos_x": n.get("pos_x", 100),
-                "pos_y": n.get("pos_y", 100)
+                "id": int(nid), "name": ntype, "data": node_data_obj, "class": ntype.lower(),
+                "html": html_content, "typenode": False, "inputs": {}, "outputs": {},
+                "pos_x": n.get("pos_x", 100), "pos_y": n.get("pos_y", 100)
             }
             if ntype != "TRIGGER":
                 df_data[nid]["inputs"]["input_1"] = {"connections": []}
             df_data[nid]["outputs"]["output_1"] = {"connections": []}
-            
+        
         for c in current_architect_graph["connections"]:
             from_id_raw = str(c.get("fromNode"))
             to_id_raw = str(c.get("toNode"))
-            
             from_id = id_map.get(from_id_raw)
             to_id = id_map.get(to_id_raw)
             
             if from_id and to_id and from_id in df_data and to_id in df_data:
-                df_data[from_id]["outputs"]["output_1"]["connections"].append({
-                    "node": to_id,
-                    "output": "input_1"
-                })
+                df_data[from_id]["outputs"]["output_1"]["connections"].append({"node": to_id, "output": "input_1"})
                 if "input_1" not in df_data[to_id]["inputs"]:
                     df_data[to_id]["inputs"]["input_1"] = {"connections": []}
-                df_data[to_id]["inputs"]["input_1"]["connections"].append({
-                    "node": from_id,
-                    "input": "output_1"
-                })
-
-        drawflow_export = {
-            "drawflow": {
-                "Home": {
-                    "data": df_data
-                }
-            }
-        }
+                df_data[to_id]["inputs"]["input_1"]["connections"].append({"node": from_id, "input": "output_1"})
         
-        return {"status": "success", "drawflow": drawflow_export}
+        drawflow_export = {"drawflow": {"Home": {"data": df_data}}}
+        
+        architect_state["finished"] = True
+        architect_state["running"] = False
+        architect_state["drawflow"] = drawflow_export
+        architect_state["last_action"] = "Done!"
+        LogManager.info("Architect", "Design complete!")
         
     except Exception as e:
         LogManager.error("Architect", f"Architect error: {str(e)}")
-        return {"status": "error", "message": str(e)}
+        architect_state["error"] = str(e)
+        architect_state["running"] = False
+        architect_state["finished"] = True
+
+@app.get("/api/architect/results")
+async def get_architect_results():
+    """Poll for architect execution results."""
+    global architect_state
+    return architect_state
 
 @app.get("/api/tools")
 async def get_tools():
