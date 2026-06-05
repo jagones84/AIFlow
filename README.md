@@ -21,6 +21,10 @@ A Python-based visual node workflow execution engine, inspired by n8n. It allows
 
 ## Installation
 
+### Requirements
+- Python 3.10+ recommended
+
+### Setup
 1. Clone the repository.
 2. Create a virtual environment:
    ```bash
@@ -31,17 +35,33 @@ A Python-based visual node workflow execution engine, inspired by n8n. It allows
    ```bash
    pip install -r requirements.txt
    ```
-4. Copy `.env.template` to `.env` and fill in any required environment variables (e.g. `OPENROUTER_API_KEY`, `BRAVE_API_KEY`).
+4. Configure environment variables:
+   - Option A: copy `.env.template` to `.env` and fill keys (recommended for local dev)
+   - Option B: start the app and set keys from the UI (Settings modal)
+
+Minimum for Architect/LLM features:
+- `OPENROUTER_API_KEY`
+
+Optional (depending on which tools you enable/use):
+- `BRAVE_API_KEY`, `TAVILY_API_KEY`, `GITHUB_TOKEN`, etc.
 
 ## Usage
 
-Start the FastAPI server:
+Start the FastAPI server (serves UI + API):
 
 ```bash
 python -m src.server
 ```
 
-Then open your browser and navigate to: [http://localhost:8000/](http://localhost:8000/)
+Open the UI:
+- http://localhost:8000/
+
+Set API keys from the UI (alternative to `.env`):
+- Open Settings (⚙️) and save keys to the backend `.env`
+
+### MCP configuration
+- MCP configuration JSON files live in [config](file:///f:/REPOSITORIES/AI_flow/config) (e.g. `mcp_default.json`).
+- The Tool list in the UI is populated from `/api/tools`. MCP servers/tools must be enabled/available for them to appear.
 
 ## Testing
 
@@ -56,3 +76,7 @@ Run integration tests (requires API keys / external services):
 ```bash
 pytest -m integration
 ```
+
+### Troubleshooting
+- If port 8000 is busy, stop the existing process or change the port in [server.py](file:///f:/REPOSITORIES/AI_flow/src/server.py).
+- If the UI loads but tools are missing, check `.env` keys and MCP config in `config/`.
