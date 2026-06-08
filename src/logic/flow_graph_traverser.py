@@ -146,6 +146,24 @@ class FlowGraphTraverser:
 
         payload_by_next_node_id: Dict[str, Dict[str, List[FlowItem]]] = {}
 
+        def tag_items(items: List[FlowItem], conn: Connection) -> List[FlowItem]:
+            if not items:
+                return []
+
+            from_pin = next((p for p in source_node.outputs if p.id == conn.fromPinId), None)
+            tagged: List[FlowItem] = []
+            for item in items:
+                new_json = dict(item.json_data or {})
+                new_json["_sourceNodeId"] = source_node.id
+                new_json["_sourceNodeTitle"] = source_node.title
+                new_json["_sourceNodeType"] = source_node.type.value
+                new_json["_sourcePinId"] = conn.fromPinId
+                new_json["_sourcePinName"] = from_pin.name if from_pin else ""
+                new_json["_sourceToNodeId"] = conn.toNodeId
+                new_json["_sourceToPinId"] = conn.toPinId
+                tagged.append(FlowItem(json_data=new_json, binary=item.binary))
+            return tagged
+
         def add_payload(next_node_id: str, to_pin_id: str, items: List[FlowItem]):
             if not items:
                 return
@@ -160,7 +178,7 @@ class FlowGraphTraverser:
         if active_from_pin_ids_override is not None:
             active_connections = [c for c in outgoing if c.fromPinId in active_from_pin_ids_override]
             for c in active_connections:
-                add_payload(c.toNodeId, c.toPinId, output_items)
+                add_payload(c.toNodeId, c.toPinId, tag_items(output_items, c))
             next_node_ids = list({c.toNodeId for c in active_connections})
         else:
             if source_node.type == NodeType.SWITCH:
@@ -169,7 +187,7 @@ class FlowGraphTraverser:
                 
                 if forced_route_pin:
                     for c in [conn for conn in outgoing if conn.fromPinId == forced_route_pin.id]:
-                        add_payload(c.toNodeId, c.toPinId, output_items)
+                        add_payload(c.toNodeId, c.toPinId, tag_items(output_items, c))
                     logs.append(f"Switch '{source_node.title}' routing via '{output_decision}' (Execution Result)")
                 else:
                     for item in output_items:
@@ -200,7 +218,7 @@ class FlowGraphTraverser:
                             pin = next((p for p in source_node.outputs if p.name == route_name), None)
                             if pin:
                                 for c in [conn for conn in outgoing if conn.fromPinId == pin.id]:
-                                    add_payload(c.toNodeId, c.toPinId, [item])
+                                    add_payload(c.toNodeId, c.toPinId, tag_items([item], c))
                 
                 next_node_ids = list(payload_by_next_node_id.keys())
 
@@ -223,12 +241,12 @@ class FlowGraphTraverser:
                 if should_trust_execution and ("TRUE" in output_decision or "YES" in output_decision):
                     if true_pin:
                         for c in [conn for conn in outgoing if conn.fromPinId == true_pin.id]:
-                            add_payload(c.toNodeId, c.toPinId, output_items)
+                            add_payload(c.toNodeId, c.toPinId, tag_items(output_items, c))
                     logs.append(f"Router '{source_node.title}' routed TRUE (Execution Result)")
                 elif should_trust_execution and ("FALSE" in output_decision or "NO" in output_decision):
                     if false_pin:
                         for c in [conn for conn in outgoing if conn.fromPinId == false_pin.id]:
-                            add_payload(c.toNodeId, c.toPinId, output_items)
+                            add_payload(c.toNodeId, c.toPinId, tag_items(output_items, c))
                     logs.append(f"Router '{source_node.title}' routed FALSE (Execution Result)")
                 elif source_node.routerMode == RouterMode.SIMPLE_RULE and source_node.ruleCondition:
                     cond = source_node.ruleCondition
@@ -248,17 +266,17 @@ class FlowGraphTraverser:
                         pin = true_pin if is_true else false_pin
                         if pin:
                             for c in [conn for conn in outgoing if conn.fromPinId == pin.id]:
-                                add_payload(c.toNodeId, c.toPinId, [item])
+                                add_payload(c.toNodeId, c.toPinId, tag_items([item], c))
                     logs.append(f"Router '{source_node.title}' routed per-item (Simple Rule)")
                 else:
                     for c in outgoing:
-                        add_payload(c.toNodeId, c.toPinId, output_items)
+                        add_payload(c.toNodeId, c.toPinId, tag_items(output_items, c))
                 
                 next_node_ids = list(payload_by_next_node_id.keys())
             
             else:
                 for c in outgoing:
-                    add_payload(c.toNodeId, c.toPinId, output_items)
+                    add_payload(c.toNodeId, c.toPinId, tag_items(output_items, c))
                 next_node_ids = list(payload_by_next_node_id.keys())
 
         if not next_node_ids:

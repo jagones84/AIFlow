@@ -250,6 +250,29 @@ class NodeExecutor:
                     system_instruction += f"\n\n[System Note: Today's date is {today_str}. If asked about recent events, ALWAYS use the provided tools to search the web first. Do not hallucinate or guess recent sports results without checking.]"
                 else:
                     system_instruction = f"You are a helpful assistant. Today's date is {today_str}. ALWAYS use tools to search for current events."
+
+                ctx = dict(node.context or {})
+                raw_history = ctx.get("chat_history", [])
+                chat_history: List[Dict[str, str]] = raw_history if isinstance(raw_history, list) else []
+
+                def _clip_text(s: str, max_len: int) -> str:
+                    t = str(s or "")
+                    if len(t) <= max_len:
+                        return t
+                    return t[:max_len] + "\n...[truncated]..."
+
+                history_messages = []
+                for m in chat_history:
+                    if not isinstance(m, dict):
+                        continue
+                    role = str(m.get("role") or "").strip().lower()
+                    content = m.get("content")
+                    if role not in ("user", "assistant"):
+                        continue
+                    if content is None:
+                        continue
+                    history_messages.append({"role": role, "content": _clip_text(str(content), 4000)})
+                history_messages = history_messages[-20:]
                 
                 # Prepare tools for OpenAI/OpenRouter if allowedTools is set
                 ai_tools = []
@@ -304,14 +327,21 @@ class NodeExecutor:
                         local_log_info(f"Routing to OpenRouter with model: {model_id}")
                         from openai import OpenAI
                         # OpenRouter provides an OpenAI-compatible API endpoint
-                        client = OpenAI(
-                            base_url="https://openrouter.ai/api/v1",
-                            api_key=openrouter_api_key,
-                            timeout=60.0,
-                        )
+                        try:
+                            client = OpenAI(
+                                base_url="https://openrouter.ai/api/v1",
+                                api_key=openrouter_api_key,
+                                timeout=60.0,
+                            )
+                        except TypeError:
+                            client = OpenAI(
+                                base_url="https://openrouter.ai/api/v1",
+                                api_key=openrouter_api_key,
+                            )
                         messages = []
                         if system_instruction:
                             messages.append({"role": "system", "content": system_instruction})
+                        messages.extend(history_messages)
                         messages.append({"role": "user", "content": input_text})
                         
                         # Sanitize model name - ensure no duplicates
@@ -425,10 +455,14 @@ class NodeExecutor:
                     try:
                         self._log_info(f"Routing to OpenAI with model: {model_id}")
                         from openai import OpenAI
-                        client = OpenAI(api_key=openai_api_key, timeout=60.0)
+                        try:
+                            client = OpenAI(api_key=openai_api_key, timeout=60.0)
+                        except TypeError:
+                            client = OpenAI(api_key=openai_api_key)
                         messages = []
                         if system_instruction:
                             messages.append({"role": "system", "content": system_instruction})
+                        messages.extend(history_messages)
                         messages.append({"role": "user", "content": input_text})
                         
                         response = client.chat.completions.create(
@@ -450,7 +484,7 @@ class NodeExecutor:
                             model=model_id,
                             max_tokens=1024,
                             system=system_instruction,
-                            messages=[{"role": "user", "content": input_text}]
+                            messages=history_messages + [{"role": "user", "content": input_text}]
                         )
                         output = response.content[0].text or ""
                     except Exception as e:
@@ -500,6 +534,13 @@ class NodeExecutor:
                     output = f"Simulated AI Response using {model_id}.\n(To get real responses, add API Keys to .env file)\nPrompt: {prompt}\nInput: {input_text}"
                 
                 output_items = [self._wrap_text_item(output)]
+
+                next_history = list(chat_history)
+                next_history.append({"role": "user", "content": _clip_text(input_text, 4000)})
+                next_history.append({"role": "assistant", "content": _clip_text(output, 4000)})
+                ctx["chat_history"] = next_history[-40:]
+                updated_node = node.model_copy(deep=True)
+                updated_node.context = ctx
                 
                 if node.allowedTools:
                     self._log_info(f"AI has access to tools: {', '.join(node.allowedTools)}")
@@ -786,21 +827,42 @@ class NodeExecutor:
                 sorted_pin_ids = [p.id for p in input_pins] if input_pins else sorted(payload.itemsByPinId.keys())
                 
                 # Support more than 2 inputs by flattening them all if appending
-                all_items = payload.all_items()
+                all_items = input_items if input_items else payload.all_items()
                 
                 # Get specific inputs for operations that require pairs
                 input1_items = payload.itemsByPinId.get(sorted_pin_ids[0], []) if sorted_pin_ids else []
                 input2_items = payload.itemsByPinId.get(sorted_pin_ids[1], []) if len(sorted_pin_ids) > 1 else []
 
                 if node.mergeMode == MergeMode.APPEND:
-                    output_items = all_items
-                    output = f"Merged {len(all_items)} item(s) from all {len(sorted_pin_ids)} inputs."
+                    grouped: Dict[str, List[FlowItem]] = {}
+                    for item in all_items:
+                        source_title = item.json_data.get("_sourceNodeTitle") or item.json_data.get("_sourceNodeId") or "Unknown Source"
+                        grouped.setdefault(str(source_title), []).append(item)
+
+                    parts = []
+                    sections = []
+                    for source_title, items in grouped.items():
+                        sections.append(f"### {source_title}\n")
+                        rendered_items = []
+                        for it in items:
+                            t = it.json_data.get("text")
+                            if t and str(t).strip():
+                                rendered_items.append(str(t))
+                            else:
+                                cleaned = {k: v for k, v in (it.json_data or {}).items() if not str(k).startswith("_source")}
+                                rendered_items.append(json.dumps(cleaned, ensure_ascii=False))
+                        sections.append("\n\n".join(rendered_items).strip())
+                        parts.append({"source": source_title, "count": len(items)})
+
+                    combined_text = "\n\n".join([s for s in sections if s is not None and str(s).strip()]).strip()
+                    output_items = [FlowItem(json_data={"text": combined_text, "parts": parts})]
+                    output = combined_text if combined_text else f"Merged {len(all_items)} item(s) from all inputs."
                 elif node.mergeMode == MergeMode.WAIT:
                     output_items = all_items # Pass through everything we waited for
                     output = f"Wait completed. Passing through {len(output_items)} item(s)."
                 elif node.mergeMode == MergeMode.CHOOSE_BRANCH:
-                    idx = max(0, min(node.mergeOutputIndex, len(sorted_pins) - 1))
-                    output_items = payload.itemsByPinId.get(sorted_pins[idx], []) if sorted_pins else []
+                    idx = max(0, min(node.mergeOutputIndex, len(sorted_pin_ids) - 1))
+                    output_items = payload.itemsByPinId.get(sorted_pin_ids[idx], []) if sorted_pin_ids else []
                     output = f"Selected branch {idx} with {len(output_items)} item(s)."
                 elif node.mergeMode == MergeMode.COMBINE_BY_POSITION:
                     max_size = max(len(input1_items), len(input2_items))

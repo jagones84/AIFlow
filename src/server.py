@@ -86,6 +86,8 @@ async def get_status():
                     "title": n.title,
                     "status": n.status.value,
                     "type": n.type.value,
+                    "executionCount": getattr(n, "executionCount", 0),
+                    "chatHistoryLen": len(n.context.get("chat_history", [])) if isinstance(n.context, dict) and isinstance(n.context.get("chat_history", []), list) else 0,
                     "lastOutput": n.lastOutput[:500] if n.lastOutput else None,
                     "lastOutputFull": n.lastOutput if n.lastOutput else None,
                     "lastInput": n.lastInput[:200] if n.lastInput else None,
@@ -825,6 +827,7 @@ async def get_results():
         "id": n.id,
         "title": n.title,
         "status": n.status.value,
+        "executionCount": getattr(n, "executionCount", 0),
         "lastOutput": n.lastOutput,
         "lastInputItems": [item.json_data for item in n.lastInputItems],
         "lastOutputItems": [item.json_data for item in n.lastOutputItems]

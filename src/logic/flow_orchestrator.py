@@ -257,7 +257,24 @@ class FlowOrchestrator:
 
         if result.updatedNode:
             def update_node_data(nodes):
-                return [result.updatedNode if n.id == result.updatedNode.id else n for n in nodes]
+                res = []
+                for n in nodes:
+                    if n.id != result.updatedNode.id:
+                        res.append(n)
+                        continue
+
+                    n_copy = n.model_copy(deep=True)
+
+                    if isinstance(result.updatedNode.context, dict):
+                        merged_ctx = dict(n_copy.context or {})
+                        merged_ctx.update(result.updatedNode.context)
+                        n_copy.context = merged_ctx
+
+                    if result.updatedNode.status == NodeStatus.WAITING_FOR_USER:
+                        n_copy.status = NodeStatus.WAITING_FOR_USER
+
+                    res.append(n_copy)
+                return res
             await self._atomic_update(update_node_data)
 
         if result.success:

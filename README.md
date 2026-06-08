@@ -53,8 +53,11 @@ Start the FastAPI server (serves UI + API):
 python -m src.server
 ```
 
-Open the UI:
+Open the Web UI in your browser (default):
 - http://localhost:8000/
+- http://127.0.0.1:8000/
+
+**To stop the server:** Press `CTRL+C` in the terminal where it is running.
 
 Set API keys from the UI (alternative to `.env`):
 - Open Settings (⚙️) and save keys to the backend `.env`

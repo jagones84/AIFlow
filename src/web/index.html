@@ -774,10 +774,13 @@
             const res = window.lastExecutionResults[id];
             if (res) {
                 ioPanel.innerHTML = `
-                    <h5 style="margin:0 0 5px 0;">Last Input</h5>
-                    <pre style="font-size:10px; max-height:100px; overflow:auto; background:#eee; padding:5px; margin:0 0 10px 0; white-space:pre-wrap; word-wrap:break-word; word-break:break-all;">${JSON.stringify(res.lastInputItems, null, 2)}</pre>
-                    <h5 style="margin:0 0 5px 0;">Last Output</h5>
-                    <pre style="font-size:10px; max-height:100px; overflow:auto; background:#eee; padding:5px; margin:0; white-space:pre-wrap; word-wrap:break-word; word-break:break-all;">${JSON.stringify(res.lastOutputItems, null, 2)}</pre>
+                    <div style="background: #eaf2f8; padding: 5px; border-radius: 4px; margin-bottom: 10px; border-left: 3px solid #3498db;">
+                        <strong style="font-size: 11px; color: #2c3e50;">Iteration: ${res.executionCount || 0} | Status: ${res.status || 'UNKNOWN'}</strong>
+                    </div>
+                    <h5 style="margin:0 0 5px 0; color: #2c3e50;">Last Input</h5>
+                    <pre style="font-size:11px; max-height:200px; overflow-y:auto; background:#f8f9fa; padding:8px; border: 1px solid #ddd; border-radius: 4px; margin:0 0 10px 0; white-space:pre-wrap; word-wrap:break-word;">${JSON.stringify(res.lastInputItems, null, 2)}</pre>
+                    <h5 style="margin:0 0 5px 0; color: #2c3e50;">Last Output</h5>
+                    <pre style="font-size:11px; max-height:200px; overflow-y:auto; background:#f8f9fa; padding:8px; border: 1px solid #ddd; border-radius: 4px; margin:0; white-space:pre-wrap; word-wrap:break-word;">${JSON.stringify(res.lastOutputItems, null, 2)}</pre>
                 `;
             } else {
                 ioPanel.innerHTML = '<em style="font-size:11px; color:#7f8c8d;">No execution data yet. Run the workflow first.</em>';
@@ -1271,10 +1274,10 @@
                                 if (titleBox) {
                                     titleBox.style.opacity = '1';
                                     titleBox.style.border = '';
+                                    nodeElement.classList.remove('running');
                                     
                                     if (nodeState.status === 'RUNNING') {
-                                        titleBox.style.border = '2px solid #f1c40f';
-                                        titleBox.style.animation = 'pulse 0.5s infinite';
+                                        nodeElement.classList.add('running');
                                     } else if (nodeState.status === 'SUCCESS') {
                                         titleBox.style.border = '2px solid #2ecc71';
                                     } else if (nodeState.status === 'FAILURE') {
@@ -1283,6 +1286,21 @@
                                         titleBox.style.border = '2px solid #3498db';
                                         titleBox.style.animation = 'blink 1s infinite';
                                     }
+                                }
+                            }
+                            
+                            // Real-time update of properties I/O panel
+                            if (currentSelectedId && String(nodeState.id) === String(currentSelectedId)) {
+                                window.lastExecutionResults[currentSelectedId] = nodeState;
+                                const ioPanel = document.getElementById('node-io-panel');
+                                if (ioPanel) {
+                                    ioPanel.innerHTML = `
+                                        <h5 style="margin:0 0 5px 0;">Iteration: ${nodeState.executionCount || 0} | Status: ${nodeState.status}</h5>
+                                        <h5 style="margin:0 0 5px 0;">Last Input</h5>
+                                        <pre style="font-size:10px; max-height:100px; overflow:auto; background:#eee; padding:5px; margin:0 0 10px 0; white-space:pre-wrap; word-wrap:break-word; word-break:break-all;">${JSON.stringify(nodeState.lastInputItems, null, 2)}</pre>
+                                        <h5 style="margin:0 0 5px 0;">Last Output</h5>
+                                        <pre style="font-size:10px; max-height:100px; overflow:auto; background:#eee; padding:5px; margin:0; white-space:pre-wrap; word-wrap:break-word; word-break:break-all;">${JSON.stringify(nodeState.lastOutputItems, null, 2)}</pre>
+                                    `;
                                 }
                             }
                         });
@@ -1423,68 +1441,12 @@
 
             // Start polling for real-time status
             pollInterval = setInterval(async () => {
+                await fetchAndUpdateLogs();
+                
                 try {
                     const res = await fetch('/api/status');
                     if (res.ok) {
                         const data = await res.json();
-                        document.querySelectorAll('.drawflow-node').forEach(el => el.classList.remove('running'));
-                        data.running_nodes.forEach(id => {
-                            const el = document.getElementById('node-' + id);
-                            if(el) el.classList.add('running');
-                        });
-                        
-                        // Update Logs with per-node I/O
-                        if (data.node_states && data.node_states.length > 0) {
-                            const logContent = document.getElementById('log-content');
-                            let newHtml = '';
-                            
-                            if (data.workflow) {
-                                newHtml += '<div class="log-line" style="color:#a29bfe; font-weight:bold;">--- Workflow Structure ---</div>';
-                                data.workflow.nodes.forEach(n => {
-                                    newHtml += `<div class="log-line" style="color:#74b9ff;">  [${n.type}] ${n.title || n.id} (ID: ${n.id})</div>`;
-                                });
-                                data.workflow.connections.forEach(c => {
-                                    newHtml += `<div class="log-line" style="color:#636e72;">  ${c.from} → ${c.to}</div>`;
-                                });
-                                newHtml += '<div class="log-line" style="color:#a29bfe; font-weight:bold;">--- Node Execution (Real-time) ---</div>';
-                            }
-                            
-                            data.node_states.forEach(nodeState => {
-                                const statusColor = nodeState.status === 'SUCCESS' ? '#2ecc71' : 
-                                                    nodeState.status === 'FAILURE' ? '#e74c3c' : 
-                                                    nodeState.status === 'RUNNING' ? '#f1c40f' : '#636e72';
-                                newHtml += `<div class="log-line" style="color:${statusColor}; font-weight:bold; border-top:1px solid #2d3436; margin-top:4px;">[${nodeState.status}] ${nodeState.title || nodeState.id} (${nodeState.type})</div>`;
-                                
-                                if (nodeState.lastInputItems && nodeState.lastInputItems.length > 0) {
-                                    const inpStr = JSON.stringify(nodeState.lastInputItems);
-                                    newHtml += `<div class="log-line" style="color:#74b9ff;">  IN: ${inpStr.substring(0, 250)}${inpStr.length > 250 ? '...' : ''}</div>`;
-                                }
-                                if (nodeState.lastOutputItems && nodeState.lastOutputItems.length > 0) {
-                                    const outStr = JSON.stringify(nodeState.lastOutputItems);
-                                    newHtml += `<div class="log-line" style="color:#55efc4;">  OUT: ${outStr.substring(0, 250)}${outStr.length > 250 ? '...' : ''}</div>`;
-                                } else if (nodeState.lastOutput) {
-                                    newHtml += `<div class="log-line" style="color:#55efc4;">  OUT: ${nodeState.lastOutput.substring(0, 250)}${nodeState.lastOutput.length > 250 ? '...' : ''}</div>`;
-                                }
-                            });
-                            
-                            if (data.logs && data.logs.length > 0) {
-                                newHtml += '<div class="log-line" style="color:#a29bfe; font-weight:bold; border-top:1px solid #2d3436; margin-top:4px;">--- System Logs ---</div>';
-                                data.logs.slice(-20).forEach(log => {
-                                    let cls = 'log-line';
-                                    if (log.includes('[ERROR')) cls += ' log-error';
-                                    else if (log.includes('[INFO')) cls += ' log-info';
-                                    else if (log.includes('[WARN')) cls += ' log-warn';
-                                    newHtml += `<div class="${cls}">${log}</div>`;
-                                });
-                            }
-                            
-                            if (logContent.innerHTML !== newHtml) {
-                                logContent.innerHTML = newHtml;
-                                const panel = document.getElementById('global-log-panel');
-                                panel.scrollTop = panel.scrollHeight;
-                            }
-                        }
-
                         if (data.waiting_nodes && data.waiting_nodes.length > 0) {
                             const waitId = data.waiting_nodes[0];
                             const overlay = document.getElementById('chat-overlay');
@@ -1587,10 +1549,13 @@
                     const ioPanel = document.getElementById('node-io-panel');
                     const r = window.lastExecutionResults[currentSelectedId];
                     ioPanel.innerHTML = `
-                        <h5 style="margin:0 0 5px 0;">Last Input</h5>
-                        <pre style="font-size:10px; max-height:150px; overflow:auto; background:#eee; padding:5px; margin:0 0 10px 0; white-space: pre-wrap; word-wrap: break-word;">${JSON.stringify(r.lastInputItems, null, 2)}</pre>
-                        <h5 style="margin:0 0 5px 0;">Last Output</h5>
-                        <pre style="font-size:10px; max-height:150px; overflow:auto; background:#eee; padding:5px; margin:0; white-space: pre-wrap; word-wrap: break-word;">${JSON.stringify(r.lastOutputItems, null, 2)}</pre>
+                        <div style="background: #eaf2f8; padding: 5px; border-radius: 4px; margin-bottom: 10px; border-left: 3px solid #3498db;">
+                            <strong style="font-size: 11px; color: #2c3e50;">Iteration: ${r.executionCount || 0} | Status: ${r.status || 'UNKNOWN'}</strong>
+                        </div>
+                        <h5 style="margin:0 0 5px 0; color: #2c3e50;">Last Input</h5>
+                        <pre style="font-size:11px; max-height:200px; overflow-y:auto; background:#f8f9fa; padding:8px; border: 1px solid #ddd; border-radius: 4px; margin:0 0 10px 0; white-space:pre-wrap; word-wrap:break-word;">${JSON.stringify(r.lastInputItems, null, 2)}</pre>
+                        <h5 style="margin:0 0 5px 0; color: #2c3e50;">Last Output</h5>
+                        <pre style="font-size:11px; max-height:200px; overflow-y:auto; background:#f8f9fa; padding:8px; border: 1px solid #ddd; border-radius: 4px; margin:0; white-space:pre-wrap; word-wrap:break-word;">${JSON.stringify(r.lastOutputItems, null, 2)}</pre>
                     `;
                 }
 
