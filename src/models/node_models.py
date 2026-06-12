@@ -169,6 +169,7 @@ class NodeData(BaseModel):
     isInteractive: bool = False
     
     attachedUris: List[str] = Field(default_factory=list)
+    attachedFiles: List[Dict[str, str]] = Field(default_factory=list)
     
     jsonSchema: Optional[str] = None
     

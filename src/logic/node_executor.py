@@ -251,6 +251,27 @@ class NodeExecutor:
                 else:
                     system_instruction = f"You are a helpful assistant. Today's date is {today_str}. ALWAYS use tools to search for current events."
 
+                # Append local node files
+                file_contents = []
+                for file_obj in getattr(node, "attachedFiles", []):
+                    name = file_obj.get("name", "Document")
+                    content = file_obj.get("content", "")
+                    if content:
+                        if ";base64," in content:
+                            import base64
+                            try:
+                                header, encoded = content.split(";base64,", 1)
+                                if "text" in header or "json" in header:
+                                    decoded = base64.b64decode(encoded).decode("utf-8", errors="ignore")
+                                    file_contents.append(f"[Attached Document: '{name}']\n{decoded}")
+                            except Exception:
+                                pass
+                        else:
+                            file_contents.append(f"[Attached Document: '{name}']\n{content}")
+
+                if file_contents:
+                    system_instruction += "\n\nATTACHED DOCUMENTS:\n" + "\n\n".join(file_contents)
+
                 ctx = dict(node.context or {})
                 raw_history = ctx.get("chat_history", [])
                 chat_history: List[Dict[str, str]] = raw_history if isinstance(raw_history, list) else []
@@ -758,6 +779,134 @@ class NodeExecutor:
                     output = f"Split out into {len(result)} items."
                 self._log_info(output)
 
+            elif node.type == NodeType.SUMMARIZE:
+                split_by = node.summarizeSplitBy or []
+                fields_to_summarize = getattr(node, "summarizeFields", [])
+                
+                # Group items
+                from collections import defaultdict
+                groups = defaultdict(list)
+                for item in input_items:
+                    key = tuple(str(item.json_data.get(k, "")) for k in split_by)
+                    groups[key].append(item)
+                
+                output_items = []
+                for key_tuple, items_in_group in groups.items():
+                    summary_item = {}
+                    for i, k in enumerate(split_by):
+                        summary_item[k] = key_tuple[i]
+                        
+                    for field_def in fields_to_summarize:
+                        f_name = field_def.get("field", "")
+                        agg = field_def.get("aggregation", "sum")
+                        sep = field_def.get("separator", ", ")
+                        include_empty = field_def.get("includeEmpty", False)
+                        
+                        vals = []
+                        for item in items_in_group:
+                            v = item.json_data.get(f_name)
+                            if v is not None or include_empty:
+                                vals.append(v)
+                                
+                        res_val = None
+                        if agg == "sum":
+                            res_val = sum(float(v) for v in vals if v is not None and str(v).replace('.','',1).isdigit())
+                        elif agg == "average" and vals:
+                            nums = [float(v) for v in vals if v is not None and str(v).replace('.','',1).isdigit()]
+                            res_val = sum(nums) / len(nums) if nums else 0
+                        elif agg == "count":
+                            res_val = len(vals)
+                        elif agg == "max":
+                            nums = [float(v) for v in vals if v is not None and str(v).replace('.','',1).isdigit()]
+                            res_val = max(nums) if nums else None
+                        elif agg == "min":
+                            nums = [float(v) for v in vals if v is not None and str(v).replace('.','',1).isdigit()]
+                            res_val = min(nums) if nums else None
+                        elif agg == "concatenate":
+                            res_val = sep.join(str(v) for v in vals if v is not None)
+                        elif agg == "append":
+                            res_val = vals
+                            
+                        summary_item[f"{agg}_{f_name}"] = res_val
+                        
+                    output_items.append(FlowItem(json_data=summary_item))
+                
+                if getattr(node, "summarizeOutputFormat", "separateItems") == "singleItem":
+                    output_items = [FlowItem(json_data={"data": [i.json_data for i in output_items]})]
+                output = f"Summarized into {len(output_items)} item(s)."
+                self._log_info(output)
+
+            elif node.type == NodeType.HTML:
+                op = getattr(node, "htmlOperation", "extract")
+                prop = getattr(node, "htmlProperty", "data")
+                
+                if op == "extract":
+                    from bs4 import BeautifulSoup
+                    extracted_items = []
+                    for item in input_items:
+                        html_str = item.json_data.get(prop, "")
+                        if not html_str:
+                            continue
+                            
+                        soup = BeautifulSoup(html_str, "html.parser")
+                        new_data = dict(item.json_data)
+                        
+                        for ext in getattr(node, "htmlExtractionValues", []):
+                            k = ext.get("key", "")
+                            sel = ext.get("cssSelector", "")
+                            ret_val = ext.get("returnValue", "text")
+                            ret_arr = ext.get("returnArray", False)
+                            attr = ext.get("attribute", "")
+                            
+                            elements = soup.select(sel)
+                            if not elements:
+                                new_data[k] = [] if ret_arr else None
+                                continue
+                                
+                            def get_val(el):
+                                if ret_val == "text": return el.get_text(strip=True)
+                                elif ret_val == "html": return str(el)
+                                elif ret_val == "attribute" and attr: return el.get(attr)
+                                elif ret_val == "value": return el.get("value")
+                                return el.get_text(strip=True)
+                                
+                            if ret_arr:
+                                new_data[k] = [get_val(e) for e in elements]
+                            else:
+                                new_data[k] = get_val(elements[0])
+                                
+                        extracted_items.append(FlowItem(json_data=new_data))
+                    output_items = extracted_items if extracted_items else input_items
+                    output = f"Extracted HTML fields for {len(output_items)} items."
+                    
+                elif op == "generate":
+                    template = getattr(node, "htmlTemplate", "")
+                    output_items = []
+                    for item in input_items:
+                        html_res = evaluator.evaluate(template) # Extremely basic template eval
+                        new_data = dict(item.json_data)
+                        new_data[prop] = html_res
+                        output_items.append(FlowItem(json_data=new_data))
+                    output = f"Generated HTML for {len(output_items)} items."
+                    
+                elif op == "table":
+                    html_table = "<table border='1'><tr>"
+                    if input_items and input_items[0].json_data:
+                        keys = input_items[0].json_data.keys()
+                        for k in keys: html_table += f"<th>{k}</th>"
+                        html_table += "</tr>"
+                        for item in input_items:
+                            html_table += "<tr>"
+                            for k in keys: html_table += f"<td>{item.json_data.get(k, '')}</td>"
+                            html_table += "</tr>"
+                    html_table += "</table>"
+                    output_items = [FlowItem(json_data={prop: html_table})]
+                    output = "Generated HTML table."
+                else:
+                    output_items = input_items
+                    output = "Unknown HTML operation."
+                self._log_info(output)
+
             elif node.type == NodeType.STOP_AND_ERROR:
                 success = False
                 should_stop_flow = True
@@ -775,6 +924,31 @@ class NodeExecutor:
                 output = text if text else "Error Trigger Activated"
                 output_items = input_items if input_items else [self._wrap_text_item(output)]
                 self._log_info("Error Trigger activated.")
+
+            elif node.type == NodeType.KNOWLEDGE:
+                file_contents = []
+                for file_obj in getattr(node, "attachedFiles", []):
+                    name = file_obj.get("name", "Document")
+                    content = file_obj.get("content", "")
+                    if content:
+                        # Extract base64 text or plain text
+                        if ";base64," in content:
+                            import base64
+                            try:
+                                header, encoded = content.split(";base64,", 1)
+                                if "text" in header or "json" in header:
+                                    decoded = base64.b64decode(encoded).decode("utf-8", errors="ignore")
+                                    file_contents.append(f"[System: Document '{name}']\n{decoded}")
+                                else:
+                                    file_contents.append(f"[System: Binary Document '{name}' indexed.]")
+                            except Exception as e:
+                                file_contents.append(f"[System: Error decoding '{name}': {str(e)}]")
+                        else:
+                            file_contents.append(f"[System: Document '{name}']\n{content}")
+
+                output = "\n\n".join(file_contents) if file_contents else "No files attached."
+                output_items = [self._wrap_text_item(output, extra={"documentsIndexed": len(file_contents)})]
+                self._log_info(f"Knowledge Node loaded: {len(file_contents)} documents.")
 
             elif node.type == NodeType.VARIABLE_STORE:
                 key = evaluator.evaluate(node.variableKey or "default_var")
@@ -957,6 +1131,61 @@ class NodeExecutor:
                         output_items.append(item)
                 output = f"Extracted field '{field_path}' into {len(output_items)} item(s)."
                 self._log_info(output)
+
+            elif node.type == NodeType.ROUTER:
+                if node.routerMode == "AI_LLM" and node.systemPrompt:
+                    from openai import OpenAI
+                    model_id = node.modelId or "qwen/qwen3.6-35b-a3b"
+                    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+                    
+                    input_text = self._items_to_text(input_items) if input_items else node.lastInput or ""
+                    prompt = evaluator.evaluate(node.systemPrompt)
+                    
+                    check_prompt = f"Evaluate content against criteria:\n{prompt}\n\nReply 'TRUE' if met, or 'FALSE' with a brief reason if not.\n\nContent:\n{input_text}"
+                    
+                    try:
+                        client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=openrouter_api_key)
+                        resp = client.chat.completions.create(
+                            model=model_id,
+                            messages=[{"role": "user", "content": check_prompt}]
+                        )
+                        output = resp.choices[0].message.content.strip()
+                        self._log_info(f"Router AI Decision: {output}")
+                    except Exception as e:
+                        output = f"FALSE (Error: {str(e)})"
+                        self._log_error(f"Router AI Error: {str(e)}")
+                else:
+                    output = "TRUE" # Default for simple rule handled by traverser
+                output_items = input_items if input_items else [self._wrap_text_item(output)]
+
+            elif node.type == NodeType.SWITCH:
+                if node.routerMode == "AI_LLM" and node.switchRoutes:
+                    from openai import OpenAI
+                    model_id = node.modelId or "qwen/qwen3.6-35b-a3b"
+                    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+                    
+                    input_text = self._items_to_text(input_items) if input_items else node.lastInput or ""
+                    prompt = evaluator.evaluate(node.systemPrompt)
+                    route_desc = "\n".join([f"- '{r.name}': {r.condition}" for r in node.switchRoutes])
+                    
+                    check_prompt = f"You are a routing assistant. Choose ONE route from the list based on the criteria and content.\nRoutes:\n{route_desc}\n\nCriteria: {prompt}\n\nReturn ONLY the route name.\n\nContent:\n{input_text}"
+                    
+                    try:
+                        client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=openrouter_api_key)
+                        resp = client.chat.completions.create(
+                            model=model_id,
+                            messages=[{"role": "user", "content": check_prompt}]
+                        )
+                        selected = resp.choices[0].message.content.strip().split('\\n')[0].strip(' \\\'"')
+                        matched = next((r.name for r in node.switchRoutes if r.name.lower() == selected.lower()), None)
+                        output = matched if matched else "No Match"
+                        self._log_info(f"Switch AI selected: '{selected}' -> Matched: '{output}'")
+                    except Exception as e:
+                        output = "No Match"
+                        self._log_error(f"Switch AI Error: {str(e)}")
+                else:
+                    output = "Evaluated by Traverser"
+                output_items = input_items if input_items else [self._wrap_text_item(output)]
 
             else:
                 # Default pass-through for unhandled types
