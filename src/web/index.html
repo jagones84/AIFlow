@@ -70,6 +70,20 @@
         }
         .node-btn:hover { background: #e9ecef; border-color: var(--accent); }
         
+        /* Node Info Panel */
+        #node-info-panel {
+            background: #eaf2f8;
+            border-left: 4px solid var(--accent);
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: none;
+        }
+        #node-info-panel h4 { margin: 0 0 5px 0; color: var(--primary); }
+        #node-info-panel p { margin: 0 0 5px 0; color: #555; }
+        #node-info-panel pre { background: #fff; padding: 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 10px; margin: 5px 0; overflow-x: auto; }
+        
         #drawflow { 
             width: calc(100vw - 320px); height: 100%; 
             background: var(--bg-color); 
@@ -245,6 +259,9 @@
 
             <div class="props-panel" id="props-panel" style="display:none;">
                 <h4>Node Configuration</h4>
+                
+                <div id="node-info-panel"></div>
+                
                 <input type="hidden" id="props-id">
                 <div id="dynamic-form"></div>
                 <button class="save-btn" onclick="saveProps()">💾 Save Config</button>
@@ -775,6 +792,39 @@
             { id: 'notes', label: 'Notes', type: 'textarea', default: '' }
         ];
 
+        // Node Descriptions Mapping
+        const NODE_DESCRIPTIONS = {
+            'TRIGGER': { brief: "Starts the workflow manually, on schedule, or via webhook.", full: "The Trigger node is the starting point of any workflow.\nIt can be activated in three ways:\n1. Manual: By clicking 'Run'.\n2. Schedule: At specific time intervals.\n3. Webhook: By calling an endpoint.", inputExample: "None", outputExample: '{"text": "Trigger Fired"}' },
+            'ERROR_TRIGGER': { brief: "Starts when an upstream node fails.", full: "Starts an error-handling branch of the workflow.\nConnect it to nodes that should run only when a previous node fails.", inputExample: "None", outputExample: '{"text": "Error branch started"}' },
+            'AI_AGENT': { brief: "Uses an LLM to process text, images, and tools.", full: "Sends inputs to a Large Language Model (LLM).\n- Supports System Prompts.\n- Can use Tools (MCP).\n- Maintains conversation history.", inputExample: '{"text": "Summarize..."}', outputExample: '{"text": "Summary..."}' },
+            'TOOL_EXECUTION': { brief: "Runs a specific tool once.", full: "Executes one tool chosen in the node configuration.\nUse this when you already know exactly which tool to call.", inputExample: '{"query": "pizza"}', outputExample: '{"places": [...] }' },
+            'ROUTER': { brief: "Routes items to True/False output.", full: "Decides which branch should receive the item(s).\nModes:\n- AI Decision\n- Simple Rule (contains:urgent)", inputExample: '{"text": "Urgent"}', outputExample: "Routed to True" },
+            'SWITCH': { brief: "Routes items to different branches.", full: "Directs workflow to one of multiple output paths based on rules or AI.", inputExample: '{"category": "urgent"}', outputExample: "Routed to 'Urgent' branch" },
+            'PROMPT_INPUT': { brief: "Injects a prompt or asks the user.", full: "Injects a text instruction into the flow.\n- Interactive: pauses flow for human response.", inputExample: "None", outputExample: '{"text": "User reply"}' },
+            'KNOWLEDGE': { brief: "Loads documents/images for AI nodes.", full: "Attach PDFs, texts, and images.\n- Text is indexed.\n- Images are sent to vision models.", inputExample: "None", outputExample: '{"text": "[System: Document indexed]"}' },
+            'JSON_PARSER': { brief: "Forces structured JSON output.", full: "Enforces structured output using a JSON schema.", inputExample: '{"text": "Age: 30"}', outputExample: '{"age": 30}' },
+            'JSON_FIELD_EXTRACT': { brief: "Extracts a field from JSON.", full: "Extracts a nested value using dot notation (e.g. data.items[0]).", inputExample: '{"user": {"name": "Ada"}}', outputExample: '{"extracted": "Ada"}' },
+            'MERGE': { brief: "Combines data from multiple branches.", full: "Merges data from input 1 and input 2 (Append, Join, Wait).", inputExample: "[A], [B]", outputExample: "[A, B]" },
+            'LOOP_OVER_ITEMS': { brief: "Splits items into batches.", full: "Processes a large input list in batches.\nOutputs to 'Loop' and 'Done'.", inputExample: "[1, 2, 3]", outputExample: "Loop emits batches" },
+            'VARIABLE_STORE': { brief: "Saves or loads global variables.", full: "Persists data across executions (Read, Write, Append).", inputExample: "New Value", outputExample: "New Value saved" },
+            'FILE_SAVE': { brief: "Saves data to a local file.", full: "Writes incoming text to a file on the device.", inputExample: "Report content", outputExample: "Saved to file" },
+            'STOP_AND_ERROR': { brief: "Stops the workflow immediately.", full: "Aborts execution with an error message or object.", inputExample: "Missing field", outputExample: "Forced Stop Error" },
+            'HTTP_REQUEST': { brief: "Makes HTTP requests.", full: "Connects to external APIs (GET, POST, etc.) with custom headers.", inputExample: "JSON", outputExample: '{"status": 200}' },
+            'WAIT': { brief: "Pauses the workflow.", full: "Delays execution for the configured amount of milliseconds.", inputExample: "[1]", outputExample: "[1] (after waiting)" },
+            'CODE': { brief: "Executes custom Python/JS code.", full: "Runs a script to transform data.", inputExample: '{"value": 10}', outputExample: '{"value": 20}' },
+            'SET': { brief: "Sets or modifies fields.", full: "Add, edit, or remove fields from data items.", inputExample: '{"name": "John"}', outputExample: '{"name": "John", "role": "Admin"}' },
+            'EXECUTE_WORKFLOW': { brief: "Triggers another workflow.", full: "Runs a sub-workflow and optionally waits.", inputExample: "Items", outputExample: "Triggers sub-workflow" },
+            'FILTER': { brief: "Removes items not matching condition.", full: "Only items where condition is TRUE pass through.", inputExample: "[{active: true}, {active: false}]", outputExample: "[{active: true}]" },
+            'SORT': { brief: "Sorts items by a field.", full: "Sorts incoming list (asc/desc, string/number).", inputExample: "[{score: 10}, {score: 2}]", outputExample: "[{score: 2}, {score: 10}]" },
+            'LIMIT': { brief: "Keeps subset of items.", full: "Limits number of items downstream (offset + count).", inputExample: "[1, 2, 3] (limit 1)", outputExample: "[1]" },
+            'AGGREGATE': { brief: "Groups items into a single list.", full: "Combines all incoming items into one item containing a list.", inputExample: "[1, 2]", outputExample: '{"data": [1, 2]}' },
+            'REMOVE_DUPLICATES': { brief: "Removes duplicate items.", full: "Removes duplicates based on selected fields.", inputExample: "[1, 1, 2]", outputExample: "[1, 2]" },
+            'SPLIT_OUT': { brief: "Splits an array field.", full: "Creates a new item for each element in an array field.", inputExample: '{"items": ["a", "b"]}', outputExample: '[{"items": "a"}, {"items": "b"}]' },
+            'SUMMARIZE': { brief: "Aggregates items by group keys.", full: "Produces summary rows (sum, average, count, etc).", inputExample: '[{"country":"IT","amount":10}]', outputExample: '[{"country":"IT","sum_amount":10}]' },
+            'HTML': { brief: "Extracts or generates HTML.", full: "Extract via CSS selectors, generate from template, or convert to table.", inputExample: "<div>Hello</div>", outputExample: '{"text": "Hello"}' },
+            'OUTPUT_DISPLAY': { brief: "Displays the latest items.", full: "Shows results to the user.", inputExample: "Any items", outputExample: "[Output] human-readable view" }
+        };
+
         // UI Event Listeners
         window.lastExecutionResults = {};
         let currentSelectedId = null;
@@ -876,7 +926,7 @@
                                 currentFormState[fieldId].push({ name: file.name, content: evt.target.result });
                                 renderFiles();
                             };
-                            reader.readAsText(file);
+                            reader.readAsDataURL(file);
                         });
                         e.target.value = ''; // reset
                     });
@@ -1088,6 +1138,24 @@
             
             const schema = (FORM_SCHEMA[type] || []).concat(COMMON_SCHEMA);
             renderFormFields(schema, config, form);
+            
+            // Populate Info Panel
+            const infoPanel = document.getElementById('node-info-panel');
+            const desc = NODE_DESCRIPTIONS[type];
+            if (desc) {
+                infoPanel.style.display = 'block';
+                infoPanel.innerHTML = `
+                    <h4>ℹ️ ${node.name || type} Info</h4>
+                    <p><strong>${desc.brief}</strong></p>
+                    <p style="white-space: pre-wrap;">${desc.full}</p>
+                    <div style="display:flex; gap: 5px; margin-top: 5px;">
+                        <div style="flex:1;"><strong>In:</strong><pre>${desc.inputExample}</pre></div>
+                        <div style="flex:1;"><strong>Out:</strong><pre>${desc.outputExample}</pre></div>
+                    </div>
+                `;
+            } else {
+                infoPanel.style.display = 'none';
+            }
 
             // Populate I/O Panel
             const ioPanel = document.getElementById('node-io-panel');
