@@ -253,6 +253,7 @@ class NodeExecutor:
 
                 # Append local node files
                 file_contents = []
+                image_contents = []
                 for file_obj in getattr(node, "attachedFiles", []):
                     name = file_obj.get("name", "Document")
                     content = file_obj.get("content", "")
@@ -264,6 +265,8 @@ class NodeExecutor:
                                 if "text" in header or "json" in header:
                                     decoded = base64.b64decode(encoded).decode("utf-8", errors="ignore")
                                     file_contents.append(f"[Attached Document: '{name}']\n{decoded}")
+                                elif "image" in header:
+                                    image_contents.append(content)
                             except Exception:
                                 pass
                         else:
@@ -363,7 +366,17 @@ class NodeExecutor:
                         if system_instruction:
                             messages.append({"role": "system", "content": system_instruction})
                         messages.extend(history_messages)
-                        messages.append({"role": "user", "content": input_text})
+                        
+                        if image_contents:
+                            user_content = [{"type": "text", "text": input_text}]
+                            for img_b64 in image_contents:
+                                user_content.append({
+                                    "type": "image_url",
+                                    "image_url": {"url": img_b64}
+                                })
+                            messages.append({"role": "user", "content": user_content})
+                        else:
+                            messages.append({"role": "user", "content": input_text})
                         
                         # Sanitize model name - ensure no duplicates
                         import re
@@ -484,7 +497,17 @@ class NodeExecutor:
                         if system_instruction:
                             messages.append({"role": "system", "content": system_instruction})
                         messages.extend(history_messages)
-                        messages.append({"role": "user", "content": input_text})
+                        
+                        if image_contents:
+                            user_content = [{"type": "text", "text": input_text}]
+                            for img_b64 in image_contents:
+                                user_content.append({
+                                    "type": "image_url",
+                                    "image_url": {"url": img_b64}
+                                })
+                            messages.append({"role": "user", "content": user_content})
+                        else:
+                            messages.append({"role": "user", "content": input_text})
                         
                         response = client.chat.completions.create(
                             model=model_id,
@@ -501,11 +524,30 @@ class NodeExecutor:
                     try:
                         import anthropic
                         client = anthropic.Anthropic(api_key=anthropic_api_key)
+                        
+                        user_content = [{"type": "text", "text": input_text}]
+                        if image_contents:
+                            import base64
+                            for img_b64 in image_contents:
+                                try:
+                                    header, encoded = img_b64.split(";base64,", 1)
+                                    mime_type = header.replace("data:", "")
+                                    user_content.append({
+                                        "type": "image",
+                                        "source": {
+                                            "type": "base64",
+                                            "media_type": mime_type,
+                                            "data": encoded
+                                        }
+                                    })
+                                except Exception:
+                                    pass
+                                    
                         response = client.messages.create(
                             model=model_id,
                             max_tokens=1024,
                             system=system_instruction,
-                            messages=history_messages + [{"role": "user", "content": input_text}]
+                            messages=history_messages + [{"role": "user", "content": user_content}]
                         )
                         output = response.content[0].text or ""
                     except Exception as e:
@@ -538,7 +580,18 @@ class NodeExecutor:
                         messages = []
                         if system_instruction:
                             messages.append({"role": "system", "content": system_instruction})
-                        messages.append({"role": "user", "content": input_text})
+                        messages.extend(history_messages)
+                        
+                        if image_contents:
+                            user_content = [{"type": "text", "text": input_text}]
+                            for img_b64 in image_contents:
+                                user_content.append({
+                                    "type": "image_url",
+                                    "image_url": {"url": img_b64}
+                                })
+                            messages.append({"role": "user", "content": user_content})
+                        else:
+                            messages.append({"role": "user", "content": input_text})
                         
                         response = client.chat.completions.create(
                             model=model_id,
