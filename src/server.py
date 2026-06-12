@@ -750,7 +750,6 @@ async def test_tool():
 @app.post("/api/run")
 async def run_flow(project_data: FlowProjectData):
     global current_flow_app
-    import time
     import traceback
     import asyncio
     
@@ -758,7 +757,10 @@ async def run_flow(project_data: FlowProjectData):
         flow_app = FlowApp(project_data)
         current_flow_app = flow_app
         
-        asyncio.create_task(run_flow_background(flow_app))
+        # Start immediately instead of background task to avoid fast-finish race condition in tests
+        await flow_app.orchestrator.start_flow()
+        
+        asyncio.create_task(run_flow_monitor(flow_app))
         
         return {
             "status": "running", 
@@ -771,12 +773,10 @@ async def run_flow(project_data: FlowProjectData):
             "error": str(e)
         }
 
-async def run_flow_background(flow_app):
-    """Run flow in background to avoid proxy timeouts."""
+async def run_flow_monitor(flow_app):
+    """Run flow monitor in background to handle timeouts."""
     import time
     try:
-        await flow_app.orchestrator.start_flow()
-        
         timeout = 300
         start_time = time.time()
         
@@ -797,7 +797,14 @@ async def get_results():
     
     if not current_flow_app:
         return {"status": "error", "error": "No flow running"}
-    
+        
+    # Wait until flow really starts or finishes
+    for _ in range(20):
+        if not current_flow_app.orchestrator.is_flow_running and len(current_flow_app.orchestrator.execution_logs) <= 1:
+            await asyncio.sleep(0.1)
+        else:
+            break
+            
     nodes = current_flow_app.get_nodes()
     connections = current_flow_app.get_connections()
     

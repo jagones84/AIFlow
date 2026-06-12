@@ -143,12 +143,13 @@ class FlowPayload(BaseModel):
 
 class NodeData(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    title: str
+    title: str = "Node"
     type: NodeType
     position: Dict[str, float] = Field(default_factory=lambda: {"x": 0.0, "y": 0.0})
     
     inputs: List[Pin] = Field(default_factory=list)
     outputs: List[Pin] = Field(default_factory=list)
+    config: Dict[str, Any] = Field(default_factory=dict)
     
     # Configuration
     modelId: str = "qwen/qwen3.6-35b-a3b"

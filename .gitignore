@@ -16,6 +16,11 @@ htmlcov/
 
 # Logs and outputs
 outputs/
+*.png
+ui_failure_screenshot.png
+
+# Unofficial Tests
+tests/TESTS_UNOFFICIAL/
 
 # IDEs
 .vscode/

@@ -141,15 +141,23 @@ class NodeExecutor:
                 local_log_info("Trigger node activated.")
                 
             elif node.type == NodeType.HTTP_REQUEST:
-                url_str = evaluator.evaluate(node.httpUrl)
+                # Use pydantic dict representation or getattr logic to safely retrieve config
+                node_dict = node.model_dump()
+                url_str = evaluator.evaluate(node_dict.get("httpUrl") or node_dict.get("config", {}).get("httpUrl") or "")
+                
                 if not url_str.strip():
                     success = False
                     output = "Error: HTTP URL is empty"
                     output_items = [self._wrap_text_item(output)]
                 else:
                     local_log_info(f"HTTP Request: {node.httpMethod} {url_str}")
-                    headers = {k: evaluator.evaluate(v) for k, v in node.httpHeaders.items()}
-                    body = evaluator.evaluate(node.httpBody) if node.httpBody else None
+                    
+                    # Also fallback to config for headers and body
+                    raw_headers = getattr(node, "httpHeaders", None) or getattr(node, "config", {}).get("httpHeaders", {})
+                    raw_body = getattr(node, "httpBody", None) or getattr(node, "config", {}).get("httpBody")
+                    
+                    headers = {k: evaluator.evaluate(v) for k, v in raw_headers.items()} if raw_headers else {}
+                    body = evaluator.evaluate(raw_body) if raw_body else None
                     
                     try:
                         resp = requests.request(node.httpMethod, url_str, headers=headers, data=body, timeout=30, verify=False)
@@ -242,15 +250,10 @@ class NodeExecutor:
                 
                 local_log_info(f"Routing Decision: is_openrouter={is_openrouter} for model={model_id}")
                 
-                # Auto-inject today's date to prevent LLM hallucinations
-                from datetime import datetime
-                today_str = datetime.now().strftime("%Y-%m-%d")
                 system_instruction = prompt
                 if system_instruction:
-                    system_instruction += f"\n\n[System Note: Today's date is {today_str}. If asked about recent events, ALWAYS use the provided tools to search the web first. Do not hallucinate or guess recent sports results without checking.]"
-                else:
-                    system_instruction = f"You are a helpful assistant. Today's date is {today_str}. ALWAYS use tools to search for current events."
-
+                    system_instruction += "\n\n[System Note: Use tools ONLY if necessary. Answer directly if the question does not require tools.]"
+                
                 # Append local node files
                 file_contents = []
                 image_contents = []
@@ -1117,10 +1120,14 @@ class NodeExecutor:
 
             elif node.type in (NodeType.USER_INPUT, NodeType.PROMPT_INPUT):
                 # Get the prompt text from the node config - THIS IS THE SOURCE OF TRUTH
-                prompt_text = node.promptText if hasattr(node, 'promptText') and node.promptText else (node.userInstruction if hasattr(node, 'userInstruction') and node.userInstruction else None)
+                node_dict = node.model_dump()
+                prompt_text = node_dict.get("promptText") or node_dict.get("config", {}).get("promptText")
+                if not prompt_text:
+                    prompt_text = node_dict.get("userInstruction") or node_dict.get("config", {}).get("userInstruction")
 
                 # If we have promptText defined, use it (ignore any lastOutput)
                 if prompt_text:
+                    prompt_text = evaluator.evaluate(prompt_text)
                     output = prompt_text
                     output_items = [self._wrap_text_item(output)]
                     self._log_info(f"PROMPT_INPUT: '{prompt_text[:80]}...'")

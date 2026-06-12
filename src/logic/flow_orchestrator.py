@@ -40,10 +40,18 @@ class FlowOrchestrator:
         self._state_lock = asyncio.Lock()
         self._monitor_task = None
 
-    def _log(self, message: str):
-        LogManager.info("FlowOrchestrator", message)
+    def _get_current_time(self) -> str:
+        from datetime import datetime
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    def _log(self, message: str):
+        log_msg = f"[INFO {self._get_current_time()}] {message}"
+        self.execution_logs.append(log_msg)
+        LogManager.info("FlowOrchestrator", message)
+        
     def _log_error(self, message: str):
+        log_msg = f"[ERROR {self._get_current_time()}] {message}"
+        self.execution_logs.append(log_msg)
         LogManager.error("FlowOrchestrator", message)
 
     async def start_flow(self):
@@ -57,10 +65,14 @@ class FlowOrchestrator:
         self.active_job_count = 0
         self.pending_execution_queue.clear()
         self.runtime_payload_by_node_id.clear()
-        self.execution_logs = []
         self.node_failures.clear()
+        self.execution_logs.clear()
         
-        self._log("Flow Started")
+        import time
+        from datetime import datetime
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.execution_logs.append(f"[INFO {current_time}] Flow Started")
+        self._log("Flow Started initialization")
         
         # Monitor task
         async def monitor():
@@ -202,7 +214,7 @@ class FlowOrchestrator:
                 
                 # We need to wait if ANY parent is still running or idle
                 # Note: SKIPPED is considered a terminal state, but if a node is IDLE it hasn't run yet
-                pending_parents = [p for p in parents if p.status in (NodeStatus.IDLE, NodeStatus.RUNNING, NodeStatus.WAITING_FOR_USER)]
+                pending_parents = [p for p in parents if p.status not in (NodeStatus.SUCCESS, NodeStatus.FAILURE, NodeStatus.SKIPPED)]
                 
                 if pending_parents:
                     self._log(f"Node '{node.title}' (ID: {node.id}) waiting for inputs from parents: {[p.id for p in pending_parents]}")
