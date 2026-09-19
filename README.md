@@ -86,3 +86,7 @@ pytest -m integration
 ### Troubleshooting
 - If port 8000 is busy, stop the existing process or change the port in [`src/server.py`](src/server.py).
 - If the UI loads but tools are missing, check `.env` keys and MCP config in `config/`.
+
+## License
+
+Licensed under the **Apache License 2.0** — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
