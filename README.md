@@ -1,5 +1,8 @@
 # AI Flow Engine
 
+> 🚧 **WORK IN PROGRESS — INCOMPLETE.**
+> This project is **not finished**. Features may be missing, incomplete, or broken, and the API/UI can change at any time. It is shared for experimentation only — **not production-ready**.
+
 A Python-based visual node workflow execution engine, inspired by n8n. It allows you to create drag-and-drop workflows directly from your browser, leveraging AI Agents, OpenRouter LLMs, and native local MCP (Model Context Protocol) Tools.
 
 ## Key Features
@@ -63,7 +66,7 @@ Set API keys from the UI (alternative to `.env`):
 - Open Settings (⚙️) and save keys to the backend `.env`
 
 ### MCP configuration
-- MCP configuration JSON files live in [config](file:///f:/REPOSITORIES/AI_flow/config) (e.g. `mcp_default.json`).
+- MCP configuration JSON files live in [`config/`](config) (e.g. `mcp_default.json`).
 - The Tool list in the UI is populated from `/api/tools`. MCP servers/tools must be enabled/available for them to appear.
 
 ## Testing
@@ -81,5 +84,5 @@ pytest -m integration
 ```
 
 ### Troubleshooting
-- If port 8000 is busy, stop the existing process or change the port in [server.py](file:///f:/REPOSITORIES/AI_flow/src/server.py).
+- If port 8000 is busy, stop the existing process or change the port in [`src/server.py`](src/server.py).
 - If the UI loads but tools are missing, check `.env` keys and MCP config in `config/`.
